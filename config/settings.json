@@ -1,0 +1,7 @@
+{
+  "download_path": "downloads",
+  "last_format": "mp4",
+  "appearance": "Light",
+  "auto_check_yt_dlp": true,
+  "use_internal_ytdlp": true
+}
