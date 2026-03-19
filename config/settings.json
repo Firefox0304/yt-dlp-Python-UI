@@ -3,5 +3,6 @@
   "last_format": "mp4",
   "appearance": "Light",
   "auto_check_yt_dlp": true,
-  "use_internal_ytdlp": true
+  "use_internal_ytdlp": true,
+  "last_quality": "\u9810\u8a2d"
 }
