@@ -188,46 +188,66 @@ def launch_ui(cfg, base_dir):
 
     def check_update_action(base_dir, logbox):
         import subprocess, sys
-        logbox.insert("end", "正在檢查更新，請稍候...\n")
-        logbox.see("end")
         
-        # Windows specific: hide console window
-        startupinfo = None
-        creationflags = 0
-        if os.name == 'nt':
-            import subprocess as sp
-            startupinfo = sp.STARTUPINFO()
-            startupinfo.dwFlags |= sp.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = sp.SW_HIDE
-            creationflags = sp.CREATE_NO_WINDOW
-
-        try:
-            # 1. 檢查是否已有最新版本
-            check_result = subprocess.run(
-                [sys.executable, "-m", "pip", "list", "--outdated", "--format=freeze"],
-                capture_output=True, text=True, startupinfo=startupinfo, creationflags=creationflags
-            )
-            
-            if "yt-dlp" not in check_result.stdout:
-                logbox.insert("end", "目前已是最新版本。\n")
+        def _update_log(text):
+            """在主線程中更新 log"""
+            def _ui_update():
+                logbox.insert("end", text + "\n")
                 logbox.see("end")
-                messagebox.showinfo("檢查更新", "目前的下載引擎已是最新版本，無需更新。")
-                return
+            root.after(0, _ui_update)
+        
+        def _show_info(title, message):
+            """在主線程中顯示訊息框"""
+            def _ui_update():
+                messagebox.showinfo(title, message)
+            root.after(0, _ui_update)
+        
+        def _show_error(title, message):
+            """在主線程中顯示錯誤訊息框"""
+            def _ui_update():
+                messagebox.showerror(title, message)
+            root.after(0, _ui_update)
+        
+        def _check_update_thread():
+            _update_log("正在檢查更新，請稍候...")
+            
+            # Windows specific: hide console window
+            startupinfo = None
+            creationflags = 0
+            if os.name == 'nt':
+                import subprocess as sp
+                startupinfo = sp.STARTUPINFO()
+                startupinfo.dwFlags |= sp.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = sp.SW_HIDE
+                creationflags = sp.CREATE_NO_WINDOW
 
-            # 2. 執行更新
-            logbox.insert("end", "偵測到新版本，正在更新下載引擎 (yt-dlp)...\n")
-            logbox.see("end")
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
-                startupinfo=startupinfo, creationflags=creationflags
-            )
-            logbox.insert("end", "更新完成！\n")
-            logbox.see("end")
-            messagebox.showinfo("更新成功", "下載引擎已更新至最新版本！")
-        except Exception as e:
-            logbox.insert("end", f"更新過程發生錯誤：{str(e)}\n")
-            logbox.see("end")
-            messagebox.showerror("更新失敗", f"自動更新失敗：{str(e)}")
+            try:
+                # 1. 檢查是否已有最新版本
+                check_result = subprocess.run(
+                    [sys.executable, "-m", "pip", "list", "--outdated", "--format=freeze"],
+                    capture_output=True, text=True, startupinfo=startupinfo, creationflags=creationflags
+                )
+                
+                if "yt-dlp" not in check_result.stdout:
+                    _update_log("目前已是最新版本。")
+                    _show_info("檢查更新", "目前的下載引擎已是最新版本，無需更新。")
+                    return
+
+                # 2. 執行更新
+                _update_log("偵測到新版本，正在更新下載引擎 (yt-dlp)...")
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
+                    startupinfo=startupinfo, creationflags=creationflags
+                )
+                _update_log("更新完成！")
+                _show_info("更新成功", "下載引擎已更新至最新版本！")
+            except Exception as e:
+                _update_log(f"更新過程發生錯誤：{str(e)}")
+                _show_error("更新失敗", f"自動更新失敗：{str(e)}")
+        
+        # 在獨立線程中執行更新，避免阻塞 UI
+        update_thread = threading.Thread(target=_check_update_thread, daemon=True)
+        update_thread.start()
 
     # download control
     def start_download(base_dir, url_entry, fmt_combo, quality_combo, path_entry, start_button, pbar, logbox):
