@@ -13,7 +13,7 @@ LOG = logger.get()
 
 def launch_ui(cfg, base_dir):
     root = ctk.CTk()
-    root.title("yt-dlp-python-UI v5.3 | 作者：Firefox_0304 | 協助Bot：ChatGPT")
+    root.title("yt-dlp-python-UI v5.3 | 作者：Firefox_0304 | 協助Bot：ChatGPT & Manus")
     root.geometry("920x560")
     # 鎖定視窗大小，避免 resize 時 UI 卡頓
     root.resizable(False, False)
@@ -52,10 +52,10 @@ def launch_ui(cfg, base_dir):
             banner_label.image = banner_img
             banner_label.pack(expand=True)
         except Exception:
-            lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.3    作者：Firefox_0304    協助Bot：ChatGPT", font=("Helvetica", 14, "bold"))
+            lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.3    作者：Firefox_0304    協助Bot：ChatGPT & Manus", font=("Helvetica", 14, "bold"))
             lbl.pack(padx=6, pady=10)
     else:
-        lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.3    作者：Firefox_0304    協助Bot：ChatGPT", font=("Helvetica", 14, "bold"))
+        lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.3    作者：Firefox_0304    協助Bot：ChatGPT & Manus", font=("Helvetica", 14, "bold"))
         lbl.pack(padx=6, pady=10)
 
     # Center: left input / right examples area
@@ -91,34 +91,75 @@ def launch_ui(cfg, base_dir):
     quality_combo.set(cfg.get("last_quality", "預設"))
     quality_combo.grid(row=0, column=4, sticky="e", padx=(4, 0), pady=0)
 
-    url_label = ctk.CTkLabel(left, text="網址：")
-    url_label.grid(row=1, column=0, sticky="w", padx=8, pady=6)
-    url_entry = ctk.CTkEntry(left, width=560)
-    url_entry.grid(row=1, column=1, sticky="we", padx=8, pady=6)
+    cookie_file_entry = None
 
-    txt_btn = ctk.CTkButton(left, text="匯入 .txt", width=100, command=lambda: import_txt(url_entry))
-    txt_btn.grid(row=1, column=2, padx=6, pady=6)
+    def browse_cookie_file():
+        f = filedialog.askopenfilename(filetypes=[("Cookie files", "*.txt"), ("All files", "*.*")])
+        if f:
+            cookie_file_entry.delete(0, "end")
+            cookie_file_entry.insert(0, f)
+
+    cookie_file_label = ctk.CTkLabel(left, text="Cookie：")
+    cookie_file_label.grid(row=1, column=0, sticky="w", padx=8, pady=6)
+    cookie_file_entry = ctk.CTkEntry(left, width=560)
+    cookie_file_entry.insert(0, cfg.get("cookie_file", ""))
+    cookie_file_entry.grid(row=1, column=1, sticky="we", padx=8, pady=6)
+    cookie_file_btn = ctk.CTkButton(left, text="匯入 Cookies.txt", width=100, command=browse_cookie_file)
+    cookie_file_btn.grid(row=1, column=2, padx=6, pady=6)
+
+    url_label = ctk.CTkLabel(left, text="網址：")
+    url_label.grid(row=2, column=0, sticky="w", padx=8, pady=6)
+    url_entry = ctk.CTkEntry(left, width=560)
+    url_entry.grid(row=2, column=1, sticky="we", padx=8, pady=6)
+
+    txt_btn = ctk.CTkButton(left, text="匯入批次下載", width=100, command=lambda: import_txt(url_entry))
+    txt_btn.grid(row=2, column=2, padx=6, pady=6)
 
     path_label = ctk.CTkLabel(left, text="儲存位置：")
-    path_label.grid(row=2, column=0, sticky="w", padx=8, pady=6)
+    path_label.grid(row=3, column=0, sticky="w", padx=8, pady=6)
     default_path = os.path.join(base_dir, cfg.get("download_path", "Download"))
     path_entry = ctk.CTkEntry(left, width=560)
     path_entry.insert(0, default_path)
-    path_entry.grid(row=2, column=1, sticky="we", padx=8, pady=6)
+    path_entry.grid(row=3, column=1, sticky="we", padx=8, pady=6)
 
     browse_btn = ctk.CTkButton(left, text="瀏覽", width=100, command=lambda: browse_folder(path_entry))
-    browse_btn.grid(row=2, column=2, padx=6, pady=6)
+    browse_btn.grid(row=3, column=2, padx=6, pady=6)
 
     # Start button and progress bar
-    start_btn = ctk.CTkButton(left, text="開始下載", width=140, command=lambda: start_download(base_dir, url_entry, fmt_combo, quality_combo, path_entry, start_btn, progress_bar, log_text))
-    start_btn.grid(row=3, column=1, sticky="w", padx=8, pady=(6,10))
+    start_btn = ctk.CTkButton(left, text="開始下載", width=140, command=lambda: start_download(base_dir, url_entry, fmt_combo, quality_combo, cookie_file_entry, path_entry, start_btn, progress_bar, log_text))
+    start_btn.grid(row=4, column=1, sticky="w", padx=8, pady=(6,6))
 
-    progress_bar = ctk.CTkProgressBar(left, width=720)
+    # Progress area is on its own row so it cannot overlap the start button.
+    progress_frame = ctk.CTkFrame(left, width=720, height=28, fg_color="transparent")
+    progress_frame.grid(row=5, column=0, columnspan=3, padx=8, pady=(8,6), sticky="we")
+    progress_frame.grid_propagate(False)
+
+    # Keep CTkProgressBar's rounded corners and draw the text on its internal
+    # Canvas. A child label is still a separate window layer and can cover the
+    # moving fill; drawing after the native bar avoids that artifact entirely.
+    class _ProgressBarWithText(ctk.CTkProgressBar):
+        def __init__(self, *args, **kwargs):
+            self._status_text = None
+            super().__init__(*args, **kwargs)
+
+        def _draw(self, no_color_updates=False):
+            super()._draw(no_color_updates)
+            self._canvas.delete("progress_text")
+            text = self._status_text or f"{self._determinate_value * 100:.1f}%"
+            self._canvas.create_text(
+                self._apply_widget_scaling(self._current_width) / 2,
+                self._apply_widget_scaling(self._current_height) / 2,
+                text=text, fill="white", font=("Segoe UI", 10, "bold"),
+                tags="progress_text",
+            )
+
+        def set_status(self, text):
+            self._status_text = text
+            self._draw(no_color_updates=True)
+
+    progress_bar = _ProgressBarWithText(progress_frame, width=720, height=20)
     progress_bar.set(0.0)
-    progress_bar.grid(row=4, column=0, columnspan=3, padx=8, pady=(6,4), sticky="we")
-
-    percent_label = ctk.CTkLabel(left, text="0.0%")
-    percent_label.grid(row=5, column=1, sticky="e", padx=8)
+    progress_bar.place(relx=0.5, rely=0.5, anchor="center", relwidth=1.0)
 
     # log text box
     log_text = ctk.CTkTextbox(left, width=720, height=160)
@@ -166,7 +207,7 @@ def launch_ui(cfg, base_dir):
             return
         entry.delete(0, "end")
         entry.insert(0, "file:" + f)
-        log_text.insert("end", f"匯入 txt：{f}\n")
+        log_text.insert("end", f"匯入批次下載清單：{f}\n")
         log_text.see("end")
 
     def load_example(base_dir, entry):
@@ -179,7 +220,7 @@ def launch_ui(cfg, base_dir):
             messagebox.showinfo("範例不存在", f"請把 example/example.txt 放進專案中")
     
     def show_help():
-        messagebox.showinfo("說明", "把網址貼到『網址』欄位，或匯入 .txt 批次。\n選擇格式後按「開始下載」。")
+        messagebox.showinfo("說明", "可在『網址』欄位貼上一個網址，或按『匯入批次下載』選取 .txt 批次清單（每行一個網址）。\n選擇格式、畫質與儲存位置後按「開始下載」。\n\n若需要登入 Cookie，請使用瀏覽器 Cookie 匯出工具產生 cookies.txt，再按上方『匯入 Cookies.txt』。Cookies.txt 會優先用於下載。")
 
     def set_appearance(mode):
         ctk.set_appearance_mode(mode)
@@ -222,25 +263,17 @@ def launch_ui(cfg, base_dir):
                 creationflags = sp.CREATE_NO_WINDOW
 
             try:
-                # 1. 檢查是否已有最新版本
-                check_result = subprocess.run(
-                    [sys.executable, "-m", "pip", "list", "--outdated", "--format=freeze"],
+                # 直接執行 upgrade：舊版 pip list 的 freeze 輸出在部分環境
+                # 會漏掉 yt-dlp，導致 UI 顯示「最新」但實際仍是舊版。
+                _update_log("正在從 PyPI 更新下載引擎 (yt-dlp)...")
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
                     capture_output=True, text=True, startupinfo=startupinfo, creationflags=creationflags
                 )
-                
-                if "yt-dlp" not in check_result.stdout:
-                    _update_log("目前已是最新版本。")
-                    _show_info("檢查更新", "目前的下載引擎已是最新版本，無需更新。")
-                    return
-
-                # 2. 執行更新
-                _update_log("偵測到新版本，正在更新下載引擎 (yt-dlp)...")
-                subprocess.check_call(
-                    [sys.executable, "-m", "pip", "install", "-U", "yt-dlp"],
-                    startupinfo=startupinfo, creationflags=creationflags
-                )
-                _update_log("更新完成！")
-                _show_info("更新成功", "下載引擎已更新至最新版本！")
+                if result.returncode:
+                    raise RuntimeError(result.stderr.strip() or "pip 更新失敗")
+                _update_log((result.stdout or "").strip() or "更新完成。")
+                _show_info("檢查更新", "yt-dlp 已檢查／更新完成；請重新下載。")
             except Exception as e:
                 _update_log(f"更新過程發生錯誤：{str(e)}")
                 _show_error("更新失敗", f"自動更新失敗：{str(e)}")
@@ -250,7 +283,7 @@ def launch_ui(cfg, base_dir):
         update_thread.start()
 
     # download control
-    def start_download(base_dir, url_entry, fmt_combo, quality_combo, path_entry, start_button, pbar, logbox):
+    def start_download(base_dir, url_entry, fmt_combo, quality_combo, cookie_file_entry, path_entry, start_button, pbar, logbox):
         urlv = url_entry.get().strip()
         if not urlv:
             messagebox.showwarning("未輸入網址", "請貼上網址或匯入 txt。")
@@ -259,8 +292,10 @@ def launch_ui(cfg, base_dir):
         os.makedirs(dest, exist_ok=True)
         fmt = fmt_combo.get()
         quality = quality_combo.get()
+        cookie_file = cookie_file_entry.get().strip()
         cfg["last_format"] = fmt
         cfg["last_quality"] = quality
+        cfg["cookie_file"] = cookie_file
         config_manager.save(os.path.join(base_dir, "config", "settings.json"), cfg)
         # disable button while running
         start_button.configure(state="disabled")
@@ -272,8 +307,6 @@ def launch_ui(cfg, base_dir):
             def _ui_update():
                 if percent is not None:
                     pbar.set(percent)
-                    plabel_text = f"{percent*100:.1f}%"
-                    percent_label.configure(text=plabel_text)
                 logbox.insert("end", text + "\n")
                 logbox.see("end")
             root.after(0, _ui_update)
@@ -283,16 +316,15 @@ def launch_ui(cfg, base_dir):
                 start_button.configure(state="normal")
                 if success:
                     pbar.set(1.0)
-                    percent_label.configure(text="100.0%")
                 else:
-                    percent_label.configure(text="錯誤")
+                    pbar.set_status("錯誤")
                 logbox.insert("end", f"結束：{msg}\n")
                 logbox.see("end")
             root.after(0, _done)
 
         # if urls begins with file: delegate directly
-        downloader.run_download(base_dir, urlv, dest, fmt, quality, progress_callback=progress_cb, finished_callback=finished_cb)
+        downloader.run_download(base_dir, urlv, dest, fmt, quality, cookie_browser="無", cookie_file=cookie_file,
+                                progress_callback=progress_cb, finished_callback=finished_cb)
 
     # start main loop
     root.mainloop()
-

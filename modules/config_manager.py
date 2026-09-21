@@ -7,6 +7,8 @@ DEFAULT_CONFIG = {
     "download_path": "Download",
     "last_format": "mp4",
     "last_quality": "預設",
+    "cookie_browser": "無",
+    "cookie_file": "",
     "appearance": "Light",
     "auto_check_yt_dlp": True,
     "use_internal_ytdlp": True  # prefer python module if available
