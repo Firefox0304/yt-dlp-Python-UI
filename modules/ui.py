@@ -13,7 +13,7 @@ LOG = logger.get()
 
 def launch_ui(cfg, base_dir):
     root = ctk.CTk()
-    root.title("yt-dlp-python-UI v5.3 | 作者：Firefox_0304 | 協助Bot：ChatGPT & Manus")
+    root.title("yt-dlp-python-UI v5.4 | 作者：Firefox_0304 | 協助Bot：ChatGPT & Manus")
     root.geometry("920x560")
     # 鎖定視窗大小，避免 resize 時 UI 卡頓
     root.resizable(False, False)
@@ -52,10 +52,10 @@ def launch_ui(cfg, base_dir):
             banner_label.image = banner_img
             banner_label.pack(expand=True)
         except Exception:
-            lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.3    作者：Firefox_0304    協助Bot：ChatGPT & Manus", font=("Helvetica", 14, "bold"))
+            lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.4    作者：Firefox_0304    協助Bot：ChatGPT & Manus", font=("Helvetica", 14, "bold"))
             lbl.pack(padx=6, pady=10)
     else:
-        lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.3    作者：Firefox_0304    協助Bot：ChatGPT & Manus", font=("Helvetica", 14, "bold"))
+        lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.4    作者：Firefox_0304    協助Bot：ChatGPT & Manus", font=("Helvetica", 14, "bold"))
         lbl.pack(padx=6, pady=10)
 
     # Center: left input / right examples area
@@ -99,21 +99,21 @@ def launch_ui(cfg, base_dir):
             cookie_file_entry.delete(0, "end")
             cookie_file_entry.insert(0, f)
 
-    cookie_file_label = ctk.CTkLabel(left, text="Cookie：")
-    cookie_file_label.grid(row=1, column=0, sticky="w", padx=8, pady=6)
-    cookie_file_entry = ctk.CTkEntry(left, width=560)
-    cookie_file_entry.insert(0, cfg.get("cookie_file", ""))
-    cookie_file_entry.grid(row=1, column=1, sticky="we", padx=8, pady=6)
-    cookie_file_btn = ctk.CTkButton(left, text="匯入 Cookies.txt", width=100, command=browse_cookie_file)
-    cookie_file_btn.grid(row=1, column=2, padx=6, pady=6)
-
     url_label = ctk.CTkLabel(left, text="網址：")
-    url_label.grid(row=2, column=0, sticky="w", padx=8, pady=6)
+    url_label.grid(row=1, column=0, sticky="w", padx=8, pady=6)
     url_entry = ctk.CTkEntry(left, width=560)
-    url_entry.grid(row=2, column=1, sticky="we", padx=8, pady=6)
+    url_entry.grid(row=1, column=1, sticky="we", padx=8, pady=6)
 
     txt_btn = ctk.CTkButton(left, text="匯入批次下載", width=100, command=lambda: import_txt(url_entry))
-    txt_btn.grid(row=2, column=2, padx=6, pady=6)
+    txt_btn.grid(row=1, column=2, padx=6, pady=6)
+
+    cookie_file_label = ctk.CTkLabel(left, text="Cookie：")
+    cookie_file_label.grid(row=2, column=0, sticky="w", padx=8, pady=6)
+    cookie_file_entry = ctk.CTkEntry(left, width=560)
+    cookie_file_entry.insert(0, cfg.get("cookie_file", ""))
+    cookie_file_entry.grid(row=2, column=1, sticky="we", padx=8, pady=6)
+    cookie_file_btn = ctk.CTkButton(left, text="匯入 Cookies.txt", width=100, command=browse_cookie_file)
+    cookie_file_btn.grid(row=2, column=2, padx=6, pady=6)
 
     path_label = ctk.CTkLabel(left, text="儲存位置：")
     path_label.grid(row=3, column=0, sticky="w", padx=8, pady=6)
@@ -263,17 +263,63 @@ def launch_ui(cfg, base_dir):
                 creationflags = sp.CREATE_NO_WINDOW
 
             try:
-                # 直接執行 upgrade：舊版 pip list 的 freeze 輸出在部分環境
-                # 會漏掉 yt-dlp，導致 UI 顯示「最新」但實際仍是舊版。
-                _update_log("正在從 PyPI 更新下載引擎 (yt-dlp)...")
-                result = subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"],
-                    capture_output=True, text=True, startupinfo=startupinfo, creationflags=creationflags
-                )
+                import importlib.metadata
+                import re
+                from packaging.version import Version
+
+                def run_hidden(command):
+                    return subprocess.run(
+                        command, capture_output=True, text=True,
+                        startupinfo=startupinfo, creationflags=creationflags,
+                    )
+
+                # GUI 是由 pythonw.exe 啟動時，不要再用 pythonw.exe 建立
+                # pip 子程序；改用同一個環境的 python.exe，並等待它正常結束。
+                # 本功能不會重啟目前的 UI。
+                python_executable = sys.executable
+                if os.path.basename(python_executable).lower() == "pythonw.exe":
+                    console_python = os.path.join(os.path.dirname(python_executable), "python.exe")
+                    if os.path.isfile(console_python):
+                        python_executable = console_python
+
+                # 取得目前實際使用的引擎版本；專案內 exe 優先於 Python 模組。
+                local_exe = os.path.join(base_dir, "yt-dlp.exe")
+                if os.path.isfile(local_exe):
+                    current_result = run_hidden([local_exe, "--version"])
+                    update_command = [local_exe, "-U"]
+                else:
+                    current = importlib.metadata.version("yt-dlp")
+                    current_result = type("Result", (), {"returncode": 0, "stdout": current, "stderr": ""})()
+                    update_command = [python_executable, "-m", "pip", "install", "--upgrade", "yt-dlp"]
+                if current_result.returncode:
+                    raise RuntimeError(current_result.stderr.strip() or "無法取得目前 yt-dlp 版本")
+                current = current_result.stdout.strip().splitlines()[-1].strip()
+
+                # PyPI 回傳的第一個版本就是目前可安裝的最新穩定版本。
+                latest_result = run_hidden([
+                    python_executable, "-m", "pip", "index", "versions", "yt-dlp",
+                    "--disable-pip-version-check",
+                ])
+                if latest_result.returncode:
+                    raise RuntimeError(latest_result.stderr.strip() or "無法查詢 PyPI 最新版本")
+                match = re.search(r"yt-dlp\s*\(([^)]+)\)", latest_result.stdout)
+                if not match:
+                    match = re.search(r"Available versions:\s*([^,\s]+)", latest_result.stdout)
+                if not match:
+                    raise RuntimeError("無法解析 PyPI 最新版本")
+                latest = match.group(1).strip()
+
+                if Version(current) >= Version(latest):
+                    _update_log(f"yt-dlp 已為最新版本：)")
+                    _show_info("檢查更新", f"yt-dlp 已為最新版本：)\n目前版本：{current}")
+                    return
+
+                _update_log("yt-dlp 有新版本，正在為您安裝")
+                result = run_hidden(update_command)
                 if result.returncode:
-                    raise RuntimeError(result.stderr.strip() or "pip 更新失敗")
-                _update_log((result.stdout or "").strip() or "更新完成。")
-                _show_info("檢查更新", "yt-dlp 已檢查／更新完成；請重新下載。")
+                    raise RuntimeError(result.stderr.strip() or "yt-dlp 更新失敗")
+                _update_log(f"yt-dlp 更新完成：{current} → {latest}")
+                _show_info("檢查更新", f"yt-dlp 更新完成。\n目前版本：{latest}")
             except Exception as e:
                 _update_log(f"更新過程發生錯誤：{str(e)}")
                 _show_error("更新失敗", f"自動更新失敗：{str(e)}")
@@ -318,6 +364,18 @@ def launch_ui(cfg, base_dir):
                     pbar.set(1.0)
                 else:
                     pbar.set_status("錯誤")
+                    error_text = (msg or "").lower()
+                    if "yt-dlp 版本過舊" in msg or "older than 90 days" in error_text:
+                        messagebox.showwarning(
+                            "下載失敗",
+                            "請嘗試更新yt-dlp 以確保下載功能",
+                        )
+                    elif any(keyword in error_text for keyword in (
+                            "cookie", "cookies.txt", "dpapi", "precondition failed", "http error 412")):
+                        messagebox.showwarning(
+                            "下載失敗",
+                            "請嘗試使用瀏覽器擴充功能獲取 Cookies.txt ，並於匯入後再試一次",
+                        )
                 logbox.insert("end", f"結束：{msg}\n")
                 logbox.see("end")
             root.after(0, _done)

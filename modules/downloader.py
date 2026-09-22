@@ -93,14 +93,19 @@ def run_download(base_dir, urls, outdir, fmt, quality="預設", cookie_browser="
 
 def _friendly_error(output, rc):
     text = output or ""
+    if ("older than 90 days" in text.lower()
+            or "yt-dlp version" in text.lower() and ("old" in text.lower() or "outdated" in text.lower())):
+        return "yt-dlp 版本過舊，下載失敗。"
     if "HTTP Error 412" in text or "Precondition Failed" in text:
         return ("Bilibili 回傳 HTTP 412（反爬驗證）。請先在瀏覽器登入 bilibili.com，"
-                "再將 Cookie 選項改成 Chrome/Edge/Firefox 重試；也請按「檢查更新」更新 yt-dlp。")
+                "也可能需要重新匯入 Cookies.txt；請按「檢查更新」更新 yt-dlp。")
     if "cookies-from-browser" in text and ("Could not copy" in text or "No such file" in text):
-        return "無法讀取瀏覽器 Cookie；請關閉瀏覽器後重試，或改選「無」。"
+        return "Cookie 讀取失敗：無法讀取瀏覽器 Cookie。"
     if "Failed to decrypt with DPAPI" in text:
-        return ("Windows DPAPI 無法解密 Edge Cookie。請用同一個 Windows 使用者執行程式、"
-                "不要用系統管理員身分啟動，並關閉 Edge 後重試；也可改用瀏覽器匯出的 cookies.txt。")
+        return "Cookie 讀取失敗：Windows DPAPI 無法解密瀏覽器 Cookie。"
+    if any(keyword in text.lower() for keyword in (
+            "cookie", "cookies.txt", "cookie database", "decrypt with dpapi")):
+        return "Cookie 讀取或解析失敗。"
     return f"Exit code {rc}"
 
 

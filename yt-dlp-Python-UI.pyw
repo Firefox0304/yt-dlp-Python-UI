@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import messagebox
 
 # 依賴套件清單
-REQUIRED_PACKAGES = ["customtkinter", "yt-dlp", "pillow", "requests"]
+REQUIRED_PACKAGES = ["customtkinter", "yt-dlp", "pillow", "requests", "packaging"]
 
 def check_and_install_dependencies():
     """
