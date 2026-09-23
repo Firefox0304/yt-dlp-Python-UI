@@ -48,7 +48,7 @@ def launch_ui(cfg, base_dir):
             img = Image.open(banner_path)
             img.thumbnail((900, 70), Image.LANCZOS)
             banner_img = ImageTk.PhotoImage(img)
-            banner_label = ctk.CTkLabel(top_frame, image=banner_img, text="")
+            lbl = ctk.CTkLabel(top_frame, image=banner_img, text="")
             banner_label.image = banner_img
             banner_label.pack(expand=True)
         except Exception:
@@ -156,6 +156,10 @@ def launch_ui(cfg, base_dir):
         def set_status(self, text):
             self._status_text = text
             self._draw(no_color_updates=True)
+
+        def reset(self):
+            self._status_text = None
+            self.set(0.0)
 
     progress_bar = _ProgressBarWithText(progress_frame, width=720, height=20)
     progress_bar.set(0.0)
@@ -334,6 +338,14 @@ def launch_ui(cfg, base_dir):
         if not urlv:
             messagebox.showwarning("未輸入網址", "請貼上網址或匯入 txt。")
             return
+        if downloader.find_ffmpeg(base_dir) is None:
+            messagebox.showwarning(
+                "缺少 FFmpeg",
+                "找不到 FFmpeg，請將 ffmpeg.exe 放入程式資料夾，或將 FFmpeg 加入系統 PATH 後再試一次。",
+            )
+            logbox.insert("end", "下載取消：找不到 FFmpeg。\n")
+            logbox.see("end")
+            return
         dest = path_entry.get().strip() or os.path.join(base_dir, "Download")
         os.makedirs(dest, exist_ok=True)
         fmt = fmt_combo.get()
@@ -345,20 +357,61 @@ def launch_ui(cfg, base_dir):
         config_manager.save(os.path.join(base_dir, "config", "settings.json"), cfg)
         # disable button while running
         start_button.configure(state="disabled")
+        pbar.reset()
         logbox.insert("end", f"開始下載 -> {urlv} 格式：{fmt} 畫質：{quality} 輸出：{dest}\n")
         logbox.see("end")
 
-        def progress_cb(percent, text):
-            # run in different thread -> schedule on main thread
-            def _ui_update():
-                if percent is not None:
-                    pbar.set(percent)
-                logbox.insert("end", text + "\n")
+        # yt-dlp can emit many lines per second. Coalesce them so the Tk main
+        # loop is not flooded with one root.after callback per line, which can
+        # make the progress bar appear frozen during fast downloads.
+        progress_state = {
+            "percent": None,
+            "lines": [],
+            "scheduled": False,
+            "progress_scheduled": False,
+        }
+
+        def flush_percent():
+            progress_state["progress_scheduled"] = False
+            percent = progress_state["percent"]
+            if percent is not None:
+                pbar.set(percent)
+
+        def flush_progress():
+            progress_state["scheduled"] = False
+            percent = progress_state["percent"]
+            lines = progress_state["lines"]
+            progress_state["lines"] = []
+            if percent is not None:
+                pbar.set(percent)
+            for line in lines:
+                logbox.insert("end", line + "\n")
+            if lines:
                 logbox.see("end")
-            root.after(0, _ui_update)
+
+        def progress_cb(percent, text):
+            # Percentage updates are kept separate from log batching so the
+            # bar follows yt-dlp immediately instead of waiting for log flush.
+            if percent is not None:
+                progress_state["percent"] = max(0.0, min(1.0, percent))
+                if not progress_state["progress_scheduled"]:
+                    progress_state["progress_scheduled"] = True
+                    root.after(16, flush_percent)
+
+            # Log lines are batched independently to keep the Tk main loop
+            # responsive when yt-dlp emits many progress lines.
+            if text:
+                progress_state["lines"].append(text)
+            if not progress_state["scheduled"]:
+                progress_state["scheduled"] = True
+                root.after(50, flush_progress)
 
         def finished_cb(success, msg):
             def _done():
+                if progress_state["progress_scheduled"]:
+                    flush_percent()
+                if progress_state["scheduled"]:
+                    flush_progress()
                 start_button.configure(state="normal")
                 if success:
                     pbar.set(1.0)
@@ -369,6 +422,11 @@ def launch_ui(cfg, base_dir):
                         messagebox.showwarning(
                             "下載失敗",
                             "請嘗試更新yt-dlp 以確保下載功能",
+                        )
+                    elif "ffmpeg 缺失" in error_text or "ffmpeg" in error_text or "ffprobe" in error_text:
+                        messagebox.showwarning(
+                            "缺少 FFmpeg",
+                            "找不到或無法執行 FFmpeg，請將 ffmpeg.exe 放入程式資料夾，或將 FFmpeg 加入系統 PATH 後再試一次。",
                         )
                     elif any(keyword in error_text for keyword in (
                             "cookie", "cookies.txt", "dpapi", "precondition failed", "http error 412")):

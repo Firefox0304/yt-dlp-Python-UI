@@ -4,10 +4,47 @@ import subprocess
 import threading
 import shlex
 import re
+import shutil
+import tempfile
 from modules import logger
 
-_PERCENT_RE = re.compile(r"(\d+(?:\.\d+)?)%")
+# Match both the normal yt-dlp progress line and the explicit
+# ``Downloading:...`` line emitted by --progress-template.
+_PERCENT_RE = re.compile(r"(?:Downloading:\s*)?(\d+(?:[.,]\d+)?)\s*%", re.IGNORECASE)
 _running_processes = []
+
+
+def find_ffmpeg(base_dir):
+    """Find bundled or PATH ffmpeg and return its path, or None."""
+    candidates = [
+        os.path.join(base_dir, "ffmpeg.exe"),
+        os.path.join(base_dir, "ffmpeg"),
+        shutil.which("ffmpeg"),
+    ]
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+    return None
+
+
+def _read_batch_urls(path):
+    """Read URL lines while ignoring blank lines and full-line comments."""
+    with open(path, encoding="utf-8-sig") as f:
+        return [
+            line.strip() for line in f
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+
+
+def _prepare_batch_file(path):
+    """Create a temporary yt-dlp list without comments or blank lines."""
+    urls = _read_batch_urls(path)
+    fd, clean_path = tempfile.mkstemp(prefix="ytui-batch-", suffix=".txt")
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(urls))
+        if urls:
+            f.write("\n")
+    return clean_path
 
 
 def terminate_all_downloads():
@@ -35,8 +72,9 @@ def _build_command(base_dir, urls, outdir, fmt, quality="預設", cookie_browser
     exe = os.path.join(base_dir, "yt-dlp.exe")
     cmd = [exe] if os.path.exists(exe) else ["yt-dlp"]
 
-    cmd += ["--no-update", "--newline", "--retries", "3", "--fragment-retries", "3",
-            "--extractor-retries", "3", "--retry-sleep", "http:exp=1:20"]
+    cmd += ["--no-update", "--newline", "--progress-template", "Downloading:%(progress._percent_str)s",
+            "--retries", "3", "--fragment-retries", "3", "--extractor-retries", "3",
+            "--retry-sleep", "http:exp=1:20"]
 
     # Bilibili currently rejects some unsigned/default clients. These headers also
     # make the request look like the browser page that supplied the URL.
@@ -93,6 +131,8 @@ def run_download(base_dir, urls, outdir, fmt, quality="預設", cookie_browser="
 
 def _friendly_error(output, rc):
     text = output or ""
+    if "ffmpeg" in text.lower() or "ffprobe" in text.lower():
+        return "FFmpeg 缺失或無法執行。"
     if ("older than 90 days" in text.lower()
             or "yt-dlp version" in text.lower() and ("old" in text.lower() or "outdated" in text.lower())):
         return "yt-dlp 版本過舊，下載失敗。"
@@ -112,8 +152,7 @@ def _friendly_error(output, rc):
 def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cookie_file,
                      progress_callback, finished_callback):
     os.makedirs(outdir, exist_ok=True)
-    cmd = _build_command(base_dir, urls, outdir, fmt, quality, cookie_browser, cookie_file)
-    logger.get().info("Running command: %s", " ".join(shlex.quote(x) for x in cmd))
+    clean_batch_file = None
     startupinfo = None
     creationflags = 0
     if os.name == "nt":
@@ -125,21 +164,45 @@ def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cooki
     p = None
     output_lines = []
     try:
+        command_urls = urls
+        if urls.startswith("file:"):
+            clean_batch_file = _prepare_batch_file(urls[5:])
+            command_urls = "file:" + clean_batch_file
+        cmd = _build_command(base_dir, command_urls, outdir, fmt, quality, cookie_browser, cookie_file)
+        logger.get().info("Running command: %s", " ".join(shlex.quote(x) for x in cmd))
         try:
             p = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 cwd=base_dir, startupinfo=startupinfo, creationflags=creationflags,
-                text=True, encoding="utf-8", errors="replace",
+                text=True, encoding="utf-8", errors="replace", bufsize=1,
             )
             _running_processes.append(p)
         except FileNotFoundError:
             # Module fallback is useful when the user installed yt-dlp with pip.
             import yt_dlp as ytdlp  # type: ignore
+
+            def module_progress_hook(status):
+                if not progress_callback:
+                    return
+                state = status.get("status")
+                if state == "downloading":
+                    raw_percent = status.get("_percent_str") or status.get("percent")
+                    if raw_percent is not None:
+                        match = _PERCENT_RE.search(str(raw_percent))
+                        if match:
+                            percent = float(match.group(1).replace(",", ".")) / 100.0
+                            progress_callback(percent, f"Downloading:{raw_percent}")
+                        elif isinstance(raw_percent, (int, float)):
+                            progress_callback(float(raw_percent) / 100.0, f"Downloading:{raw_percent:.1f}%")
+                elif state == "finished":
+                    progress_callback(1.0, "Downloading:100.0%")
+
             opts = {
                 "outtmpl": os.path.join(outdir, "%(title)s.%(ext)s"),
                 "retries": 3,
                 "fragment_retries": 3,
                 "extractor_retries": 3,
+                "progress_hooks": [module_progress_hook],
                 "http_headers": {
                     "Origin": "https://www.bilibili.com",
                     "Referer": "https://www.bilibili.com/",
@@ -153,7 +216,7 @@ def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cooki
             if fmt.lower() == "mp3":
                 opts["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}]
             with ytdlp.YoutubeDL(opts) as ydl:
-                targets = [line.strip() for line in open(urls[5:], encoding="utf-8") if line.strip()] if urls.startswith("file:") else [urls]
+                targets = _read_batch_urls(urls[5:]) if urls.startswith("file:") else [urls]
                 ydl.download(targets)
             if finished_callback:
                 finished_callback(True, "Finished (module)")
@@ -180,3 +243,8 @@ def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cooki
     finally:
         if p is not None and p in _running_processes:
             _running_processes.remove(p)
+        if clean_batch_file and os.path.isfile(clean_batch_file):
+            try:
+                os.remove(clean_batch_file)
+            except OSError:
+                logger.get().warning("Unable to remove temporary batch file: %s", clean_batch_file)
