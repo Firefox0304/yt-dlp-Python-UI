@@ -51,8 +51,8 @@ def launch_ui(cfg, base_dir):
             img.thumbnail((900, 70), Image.LANCZOS)
             banner_img = ImageTk.PhotoImage(img)
             lbl = ctk.CTkLabel(top_frame, image=banner_img, text="")
-            banner_label.image = banner_img
-            banner_label.pack(expand=True)
+            lbl.image = banner_img
+            lbl.pack(expand=True)
         except Exception:
             lbl = ctk.CTkLabel(top_frame, text="yt-dlp-download-python-UI v5.4    作者：Firefox_0304    協助Bot：ChatGPT & Manus", font=("Helvetica", 14, "bold"))
             lbl.pack(padx=6, pady=10)
@@ -95,34 +95,101 @@ def launch_ui(cfg, base_dir):
 
     cookie_file_entry = None
 
+    def set_readonly_entry(entry, value):
+        entry.configure(state="normal")
+        entry.delete(0, "end")
+        if value:
+            entry.insert(0, value)
+        entry.configure(state="disabled")
+
+    def clear_entry(entry):
+        was_disabled = entry.cget("state") == "disabled"
+        entry.configure(state="normal")
+        entry.delete(0, "end")
+        if was_disabled:
+            entry.configure(state="disabled")
+
+    def add_clear_button(parent, entry, clear_command=None):
+        entry_color = entry.cget("fg_color")
+        if entry_color == "transparent":
+            entry_color = ("#ffffff", "#ffffff")
+        button = ctk.CTkButton(
+            parent, text="╳", width=15, height=20, corner_radius=0, border_width=0,
+            fg_color=entry_color, hover_color=("#d9d9d9", "#555555"),
+            text_color=("#777777", "#aaaaaa"), font=("Segoe UI Symbol", 12, "bold"),
+            border_spacing=0,
+            command=clear_command or (lambda: clear_entry(entry)),
+        )
+        button.place(relx=0.997, rely=0.5, anchor="e", x=0)
+        return button
+
     def browse_cookie_file():
         f = filedialog.askopenfilename(filetypes=[("Cookie files", "*.txt"), ("All files", "*.*")])
         if f:
-            cookie_file_entry.delete(0, "end")
-            cookie_file_entry.insert(0, f)
+            set_readonly_entry(cookie_file_entry, f)
 
     url_label = ctk.CTkLabel(left, text="網址：")
     url_label.grid(row=1, column=0, sticky="w", padx=8, pady=6)
-    url_entry = ctk.CTkEntry(left, width=560)
-    url_entry.grid(row=1, column=1, sticky="we", padx=(8, 5), pady=6)
+    url_box = ctk.CTkFrame(left, width=560, height=30, fg_color="transparent")
+    url_box.grid(row=1, column=1, sticky="we", padx=(8, 5), pady=6)
+    url_box.grid_propagate(False)
+    url_entry = ctk.CTkEntry(url_box, width=560)
+    url_entry.pack(fill="both", expand=True)
+    add_clear_button(url_box, url_entry)
 
     txt_btn = ctk.CTkButton(left, text="匯入批次下載", width=100, command=lambda: import_txt(url_entry))
     txt_btn.grid(row=1, column=2, padx=(0, 8), pady=6)
 
     cookie_file_label = ctk.CTkLabel(left, text="Cookie：")
     cookie_file_label.grid(row=2, column=0, sticky="w", padx=8, pady=6)
-    cookie_file_entry = ctk.CTkEntry(left, width=560)
-    cookie_file_entry.insert(0, cfg.get("cookie_file", ""))
-    cookie_file_entry.grid(row=2, column=1, sticky="we", padx=(8, 5), pady=6)
+    cookie_box = ctk.CTkFrame(left, width=560, height=30, fg_color="transparent")
+    cookie_box.grid(row=2, column=1, sticky="we", padx=(8, 5), pady=6)
+    cookie_box.grid_propagate(False)
+    cookie_file_entry = ctk.CTkEntry(
+        cookie_box, width=560, state="disabled",
+        fg_color=("#eeeeee", "#333333"),
+        text_color=("#777777", "#aaaaaa"),
+    )
+    cookie_file_entry.pack(fill="both", expand=True)
+    set_readonly_entry(cookie_file_entry, cfg.get("cookie_file", ""))
+    add_clear_button(cookie_box, cookie_file_entry)
+    url_entry.bind("<Button-1>", lambda event: url_entry.focus_set(), add="+")
     cookie_file_btn = ctk.CTkButton(left, text="匯入 Cookies.txt", width=100, command=browse_cookie_file)
     cookie_file_btn.grid(row=2, column=2, padx=(0, 8), pady=6)
 
     path_label = ctk.CTkLabel(left, text="儲存位置：")
     path_label.grid(row=3, column=0, sticky="w", padx=8, pady=6)
     default_path = os.path.join(base_dir, cfg.get("download_path", "Download"))
-    path_entry = ctk.CTkEntry(left, width=560)
+    path_box = ctk.CTkFrame(left, width=560, height=30, fg_color="transparent")
+    path_box.grid(row=3, column=1, sticky="we", padx=(8, 5), pady=6)
+    path_box.grid_propagate(False)
+    path_entry = ctk.CTkEntry(path_box, width=560)
+    path_entry.pack(fill="both", expand=True)
+    path_placeholder = {"active": True}
     path_entry.insert(0, default_path)
-    path_entry.grid(row=3, column=1, sticky="we", padx=(8, 5), pady=6)
+    path_entry.configure(text_color=("#888888", "#888888"))
+
+    def clear_path_placeholder(event=None):
+        if path_placeholder["active"]:
+            path_entry.delete(0, "end")
+            path_entry.configure(text_color=ctk.ThemeManager.theme["CTkEntry"]["text_color"])
+            path_placeholder["active"] = False
+
+    def restore_path_placeholder(event=None):
+        if not path_entry.get().strip():
+            path_entry.insert(0, default_path)
+            path_entry.configure(text_color=("#888888", "#888888"))
+            path_placeholder["active"] = True
+
+    def clear_path():
+        path_entry.delete(0, "end")
+        path_entry.insert(0, default_path)
+        path_entry.configure(text_color=("#888888", "#888888"))
+        path_placeholder["active"] = True
+
+    path_entry.bind("<FocusIn>", clear_path_placeholder)
+    path_entry.bind("<FocusOut>", restore_path_placeholder)
+    add_clear_button(path_box, path_entry, clear_path)
 
     browse_btn = ctk.CTkButton(left, text="瀏覽", width=100, command=lambda: browse_folder(path_entry))
     browse_btn.grid(row=3, column=2, padx=(0, 8), pady=6)
@@ -183,9 +250,26 @@ def launch_ui(cfg, base_dir):
     ctk.CTkCheckBox(action_frame, text="開啟輸出資料夾", variable=open_folder_var, width=120).pack(side="left", padx=0)
 
     # log text box
-    log_text = ctk.CTkTextbox(left, width=720, height=160)
+    log_text = ctk.CTkTextbox(left, width=720, height=160, state="disabled")
     log_text.grid(row=6, column=0, columnspan=3, padx=8, pady=(6,4))
-    log_text.insert("0.0", "狀態/日誌…（會顯示 yt-dlp 輸出）\n")
+    def append_log(text, index="end"):
+        log_text.configure(state="normal")
+        log_text.insert(index, text)
+        log_text.configure(state="disabled")
+
+    append_log("狀態/日誌…（會顯示 yt-dlp 輸出）\n", "0.0")
+
+    input_widgets = {
+        url_entry, path_entry,
+        getattr(url_entry, "_entry", None),
+        getattr(path_entry, "_entry", None),
+    }
+
+    def release_input_focus(event):
+        if event.widget not in input_widgets:
+            root.after_idle(root.focus_set)
+
+    root.bind_all("<ButtonRelease-1>", release_input_focus, add="+")
 
     # Right side: examples / change background / mode
     right_label = ctk.CTkLabel(right, text="快速操作")
@@ -237,6 +321,8 @@ def launch_ui(cfg, base_dir):
     def browse_folder(entry):
         d = filedialog.askdirectory(initialdir=entry.get() or base_dir)
         if d:
+            path_placeholder["active"] = False
+            entry.configure(text_color=ctk.ThemeManager.theme["CTkEntry"]["text_color"])
             entry.delete(0, "end")
             entry.insert(0, d)
 
@@ -246,7 +332,7 @@ def launch_ui(cfg, base_dir):
             return
         entry.delete(0, "end")
         entry.insert(0, "file:" + f)
-        log_text.insert("end", f"匯入批次下載清單：{f}\n")
+        append_log(f"匯入批次下載清單：{f}\n")
         log_text.see("end")
 
     def load_example(base_dir, entry):
@@ -254,7 +340,7 @@ def launch_ui(cfg, base_dir):
         if os.path.exists(ex):
             entry.delete(0, "end")
             entry.insert(0, "file:" + ex)
-            log_text.insert("end", f"已載入 example.txt\n")
+            append_log("已載入 example.txt\n")
         else:
             messagebox.showinfo("範例不存在", f"請把 example/example.txt 放進專案中")
     
@@ -298,7 +384,7 @@ def launch_ui(cfg, base_dir):
         def _update_log(text):
             """在主線程中更新 log"""
             def _ui_update():
-                logbox.insert("end", text + "\n")
+                append_log(text + "\n")
                 logbox.see("end")
             root.after(0, _ui_update)
         
@@ -404,7 +490,7 @@ def launch_ui(cfg, base_dir):
                 "缺少 FFmpeg",
                 "找不到 FFmpeg，請將 ffmpeg.exe 放入程式資料夾，或將 FFmpeg 加入系統 PATH 後再試一次。",
             )
-            logbox.insert("end", "下載取消：找不到 FFmpeg。\n")
+            append_log("下載取消：找不到 FFmpeg。\n")
             logbox.see("end")
             return
         dest = path_entry.get().strip() or os.path.join(base_dir, "Download")
@@ -425,7 +511,7 @@ def launch_ui(cfg, base_dir):
         # disable button while running
         start_button.configure(state="disabled")
         pbar.reset()
-        logbox.insert("end", f"開始下載 -> {urlv} 格式：{fmt} 畫質：{quality} 輸出：{dest}\n")
+        append_log(f"開始下載 -> {urlv} 格式：{fmt} 畫質：{quality} 輸出：{dest}\n")
         logbox.see("end")
 
         # yt-dlp can emit many lines per second. Coalesce them so the Tk main
@@ -455,7 +541,7 @@ def launch_ui(cfg, base_dir):
             if percent is not None:
                 pbar.set(percent)
             for line in lines:
-                logbox.insert("end", line + "\n")
+                append_log(line + "\n")
             if lines:
                 logbox.see("end")
 
@@ -517,7 +603,7 @@ def launch_ui(cfg, base_dir):
                             "下載失敗",
                             "請嘗試使用瀏覽器擴充功能獲取 Cookies.txt ，並於匯入後再試一次",
                         )
-                logbox.insert("end", f"結束：{msg}\n")
+                append_log(f"結束：{msg}\n")
                 logbox.see("end")
                 history.add(base_dir, urlv, dest, fmt, quality, success, msg)
             root.after(0, _done)
