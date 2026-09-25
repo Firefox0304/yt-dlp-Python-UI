@@ -7,6 +7,8 @@ from tkinter import filedialog, messagebox
 from modules import config_manager, downloader, logger, utils, history
 import threading
 import subprocess
+import webbrowser
+from urllib.parse import urlparse
 
 ctk.set_appearance_mode("Light")  # 預設亮色
 ctk.set_default_color_theme("blue")
@@ -352,11 +354,53 @@ def launch_ui(cfg, base_dir):
         if not items:
             messagebox.showinfo("下載歷史", "目前沒有下載紀錄。")
             return
-        lines = []
-        for item in items[-20:][::-1]:
+
+        history_window = ctk.CTkToplevel(root)
+        history_window.title("下載歷史（最近 20 筆）")
+        history_window.geometry("860x480")
+        history_window.minsize(680, 320)
+        history_window.transient(root)
+        history_list = ctk.CTkScrollableFrame(history_window)
+        history_list.pack(fill="both", expand=True, padx=12, pady=(12, 6))
+        recent_items = items[-20:][::-1]
+
+        def open_history_target(target):
+            target = str(target or "").strip()
+            if not target:
+                return
+            if target.lower().startswith("file:"):
+                local_path = target[5:]
+                if sys.platform.startswith("win") and hasattr(os, "startfile"):
+                    os.startfile(local_path)
+                else:
+                    webbrowser.open(target)
+                return
+            webbrowser.open(target)
+
+        for item in recent_items:
             status = "成功" if item.get("success") else "失敗"
-            lines.append(f"[{item.get('time', '')}] {status} | {item.get('url', '')}")
-        messagebox.showinfo("下載歷史（最近 20 筆）", "\n".join(lines))
+            url = str(item.get("url", ""))
+            line = f"[{item.get('time', '')}] {status} | {url}"
+            history_link_button = ctk.CTkButton(
+                history_list,
+                text=line,
+                anchor="w",
+                height=28,
+                fg_color="transparent",
+                hover_color=("#e8e8e8", "#3a3a3a"),
+                text_color=("#1677c8", "#65aee8"),
+                font=("Segoe UI", 13, "underline"),
+                border_width=0,
+                corner_radius=0,
+                command=lambda target=url: open_history_target(target),
+            )
+            history_link_button.pack(fill="x", padx=6, pady=2)
+        ctk.CTkButton(
+            history_window,
+            text="關閉",
+            width=100,
+            command=history_window.destroy,
+        ).pack(pady=(0, 10))
 
     def show_diagnostics(base_dir):
         import importlib.metadata
