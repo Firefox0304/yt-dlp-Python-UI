@@ -11,7 +11,13 @@ DEFAULT_CONFIG = {
     "cookie_file": "",
     "appearance": "Light",
     "auto_check_yt_dlp": True,
-    "use_internal_ytdlp": True  # prefer python module if available
+    "use_internal_ytdlp": True,  # prefer python module if available
+    "open_file_after_download": False,
+    "open_folder_after_download": False,
+    "write_subtitles": False,
+    "embed_subtitles": False,
+    "write_thumbnail": False,
+    "add_metadata": False,
 }
 
 def load_or_init(path):

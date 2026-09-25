@@ -1,10 +1,12 @@
 # modules/ui.py
 import os
+import sys
 import tkinter as tk
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
-from modules import config_manager, downloader, logger, utils
+from modules import config_manager, downloader, logger, utils, history
 import threading
+import subprocess
 
 ctk.set_appearance_mode("Light")  # 預設亮色
 ctk.set_default_color_theme("blue")
@@ -14,7 +16,7 @@ LOG = logger.get()
 def launch_ui(cfg, base_dir):
     root = ctk.CTk()
     root.title("yt-dlp-python-UI v5.4 | 作者：Firefox_0304 | 協助Bot：ChatGPT & Manus")
-    root.geometry("920x560")
+    root.geometry("1060x560")
     # 鎖定視窗大小，避免 resize 時 UI 卡頓
     root.resizable(False, False)
     
@@ -102,32 +104,34 @@ def launch_ui(cfg, base_dir):
     url_label = ctk.CTkLabel(left, text="網址：")
     url_label.grid(row=1, column=0, sticky="w", padx=8, pady=6)
     url_entry = ctk.CTkEntry(left, width=560)
-    url_entry.grid(row=1, column=1, sticky="we", padx=8, pady=6)
+    url_entry.grid(row=1, column=1, sticky="we", padx=(8, 5), pady=6)
 
     txt_btn = ctk.CTkButton(left, text="匯入批次下載", width=100, command=lambda: import_txt(url_entry))
-    txt_btn.grid(row=1, column=2, padx=6, pady=6)
+    txt_btn.grid(row=1, column=2, padx=(0, 8), pady=6)
 
     cookie_file_label = ctk.CTkLabel(left, text="Cookie：")
     cookie_file_label.grid(row=2, column=0, sticky="w", padx=8, pady=6)
     cookie_file_entry = ctk.CTkEntry(left, width=560)
     cookie_file_entry.insert(0, cfg.get("cookie_file", ""))
-    cookie_file_entry.grid(row=2, column=1, sticky="we", padx=8, pady=6)
+    cookie_file_entry.grid(row=2, column=1, sticky="we", padx=(8, 5), pady=6)
     cookie_file_btn = ctk.CTkButton(left, text="匯入 Cookies.txt", width=100, command=browse_cookie_file)
-    cookie_file_btn.grid(row=2, column=2, padx=6, pady=6)
+    cookie_file_btn.grid(row=2, column=2, padx=(0, 8), pady=6)
 
     path_label = ctk.CTkLabel(left, text="儲存位置：")
     path_label.grid(row=3, column=0, sticky="w", padx=8, pady=6)
     default_path = os.path.join(base_dir, cfg.get("download_path", "Download"))
     path_entry = ctk.CTkEntry(left, width=560)
     path_entry.insert(0, default_path)
-    path_entry.grid(row=3, column=1, sticky="we", padx=8, pady=6)
+    path_entry.grid(row=3, column=1, sticky="we", padx=(8, 5), pady=6)
 
     browse_btn = ctk.CTkButton(left, text="瀏覽", width=100, command=lambda: browse_folder(path_entry))
-    browse_btn.grid(row=3, column=2, padx=6, pady=6)
+    browse_btn.grid(row=3, column=2, padx=(0, 8), pady=6)
 
     # Start button and progress bar
-    start_btn = ctk.CTkButton(left, text="開始下載", width=140, command=lambda: start_download(base_dir, url_entry, fmt_combo, quality_combo, cookie_file_entry, path_entry, start_btn, progress_bar, log_text))
-    start_btn.grid(row=4, column=1, sticky="w", padx=8, pady=(6,6))
+    control_row = ctk.CTkFrame(left, fg_color="transparent")
+    control_row.grid(row=4, column=1, columnspan=2, sticky="w", padx=8, pady=(6, 6))
+    start_btn = ctk.CTkButton(control_row, text="開始下載", width=140, command=lambda: start_download(base_dir, url_entry, fmt_combo, quality_combo, cookie_file_entry, path_entry, start_btn, progress_bar, log_text))
+    start_btn.pack(side="left")
 
     # Progress area is on its own row so it cannot overlap the start button.
     progress_frame = ctk.CTkFrame(left, width=720, height=28, fg_color="transparent")
@@ -140,12 +144,13 @@ def launch_ui(cfg, base_dir):
     class _ProgressBarWithText(ctk.CTkProgressBar):
         def __init__(self, *args, **kwargs):
             self._status_text = None
+            self._detail_text = None
             super().__init__(*args, **kwargs)
 
         def _draw(self, no_color_updates=False):
             super()._draw(no_color_updates)
             self._canvas.delete("progress_text")
-            text = self._status_text or f"{self._determinate_value * 100:.1f}%"
+            text = self._status_text or self._detail_text or f"{self._determinate_value * 100:.1f}%"
             self._canvas.create_text(
                 self._apply_widget_scaling(self._current_width) / 2,
                 self._apply_widget_scaling(self._current_height) / 2,
@@ -157,13 +162,25 @@ def launch_ui(cfg, base_dir):
             self._status_text = text
             self._draw(no_color_updates=True)
 
+        def set_progress_info(self, text):
+            self._detail_text = text
+            self._draw(no_color_updates=True)
+
         def reset(self):
             self._status_text = None
+            self._detail_text = None
             self.set(0.0)
 
     progress_bar = _ProgressBarWithText(progress_frame, width=720, height=20)
     progress_bar.set(0.0)
     progress_bar.place(relx=0.5, rely=0.5, anchor="center", relwidth=1.0)
+
+    action_frame = ctk.CTkFrame(control_row, fg_color="transparent")
+    action_frame.pack(side="left", padx=(5, 0))
+    open_file_var = tk.BooleanVar(value=cfg.get("open_file_after_download", False))
+    open_folder_var = tk.BooleanVar(value=cfg.get("open_folder_after_download", False))
+    ctk.CTkCheckBox(action_frame, text="開啟檔案", variable=open_file_var, width=90).pack(side="left", padx=(0, 5))
+    ctk.CTkCheckBox(action_frame, text="開啟輸出資料夾", variable=open_folder_var, width=120).pack(side="left", padx=0)
 
     # log text box
     log_text = ctk.CTkTextbox(left, width=720, height=160)
@@ -182,6 +199,24 @@ def launch_ui(cfg, base_dir):
 
     help_btn = ctk.CTkButton(right, text="說明", command=lambda: show_help())
     help_btn.pack(fill="x", padx=8, pady=6)
+
+    history_btn = ctk.CTkButton(right, text="下載歷史", command=lambda: show_history())
+    history_btn.pack(fill="x", padx=8, pady=6)
+
+    diagnostic_btn = ctk.CTkButton(right, text="系統診斷", command=lambda: show_diagnostics(base_dir))
+    diagnostic_btn.pack(fill="x", padx=8, pady=6)
+
+    advanced_frame = ctk.CTkFrame(right, fg_color="transparent")
+    advanced_frame.pack(fill="x", padx=8, pady=(4, 8))
+    ctk.CTkLabel(advanced_frame, text="進階下載").pack(anchor="w")
+    subtitles_var = tk.BooleanVar(value=cfg.get("write_subtitles", False))
+    embed_subtitles_var = tk.BooleanVar(value=cfg.get("embed_subtitles", False))
+    thumbnail_var = tk.BooleanVar(value=cfg.get("write_thumbnail", False))
+    metadata_var = tk.BooleanVar(value=cfg.get("add_metadata", False))
+    ctk.CTkCheckBox(advanced_frame, text="下載字幕", variable=subtitles_var).pack(anchor="w")
+    ctk.CTkCheckBox(advanced_frame, text="嵌入字幕", variable=embed_subtitles_var).pack(anchor="w")
+    ctk.CTkCheckBox(advanced_frame, text="下載縮圖", variable=thumbnail_var).pack(anchor="w")
+    ctk.CTkCheckBox(advanced_frame, text="加入影片資訊", variable=metadata_var).pack(anchor="w")
 
     # bottom controls: close, appearance mode
     close_btn = ctk.CTkButton(bottom_frame, text="關閉", command=on_close)
@@ -225,6 +260,32 @@ def launch_ui(cfg, base_dir):
     
     def show_help():
         messagebox.showinfo("說明", "可在『網址』欄位貼上一個網址，或按『匯入批次下載』選取 .txt 批次清單（每行一個網址）。\n選擇格式、畫質與儲存位置後按「開始下載」。\n\n若需要登入 Cookie，請使用瀏覽器 Cookie 匯出工具產生 cookies.txt，再按上方『匯入 Cookies.txt』。Cookies.txt 會優先用於下載。")
+
+    def show_history():
+        items = history.load(base_dir)
+        if not items:
+            messagebox.showinfo("下載歷史", "目前沒有下載紀錄。")
+            return
+        lines = []
+        for item in items[-20:][::-1]:
+            status = "成功" if item.get("success") else "失敗"
+            lines.append(f"[{item.get('time', '')}] {status} | {item.get('url', '')}")
+        messagebox.showinfo("下載歷史（最近 20 筆）", "\n".join(lines))
+
+    def show_diagnostics(base_dir):
+        import importlib.metadata
+        try:
+            ytdlp_version = importlib.metadata.version("yt-dlp")
+        except importlib.metadata.PackageNotFoundError:
+            ytdlp_version = "未安裝 Python yt-dlp"
+        ffmpeg = downloader.find_ffmpeg(base_dir) or "找不到"
+        messagebox.showinfo(
+            "系統診斷",
+            f"Python：{sys.version.split()[0]}\n"
+            f"yt-dlp（Python）：{ytdlp_version}\n"
+            f"FFmpeg：{ffmpeg}\n"
+            f"輸出資料夾：{path_entry.get().strip() or default_path}",
+        )
 
     def set_appearance(mode):
         ctk.set_appearance_mode(mode)
@@ -354,6 +415,12 @@ def launch_ui(cfg, base_dir):
         cfg["last_format"] = fmt
         cfg["last_quality"] = quality
         cfg["cookie_file"] = cookie_file
+        cfg["open_file_after_download"] = bool(open_file_var.get())
+        cfg["open_folder_after_download"] = bool(open_folder_var.get())
+        cfg["write_subtitles"] = bool(subtitles_var.get())
+        cfg["embed_subtitles"] = bool(embed_subtitles_var.get())
+        cfg["write_thumbnail"] = bool(thumbnail_var.get())
+        cfg["add_metadata"] = bool(metadata_var.get())
         config_manager.save(os.path.join(base_dir, "config", "settings.json"), cfg)
         # disable button while running
         start_button.configure(state="disabled")
@@ -366,6 +433,7 @@ def launch_ui(cfg, base_dir):
         # make the progress bar appear frozen during fast downloads.
         progress_state = {
             "percent": None,
+            "detail": None,
             "lines": [],
             "scheduled": False,
             "progress_scheduled": False,
@@ -376,6 +444,8 @@ def launch_ui(cfg, base_dir):
             percent = progress_state["percent"]
             if percent is not None:
                 pbar.set(percent)
+            if progress_state["detail"]:
+                pbar.set_progress_info(progress_state["detail"])
 
         def flush_progress():
             progress_state["scheduled"] = False
@@ -394,6 +464,7 @@ def launch_ui(cfg, base_dir):
             # bar follows yt-dlp immediately instead of waiting for log flush.
             if percent is not None:
                 progress_state["percent"] = max(0.0, min(1.0, percent))
+                progress_state["detail"] = text or progress_state["detail"]
                 if not progress_state["progress_scheduled"]:
                     progress_state["progress_scheduled"] = True
                     root.after(16, flush_percent)
@@ -401,6 +472,8 @@ def launch_ui(cfg, base_dir):
             # Log lines are batched independently to keep the Tk main loop
             # responsive when yt-dlp emits many progress lines.
             if text:
+                if percent is not None:
+                    progress_state["detail"] = text
                 progress_state["lines"].append(text)
             if not progress_state["scheduled"]:
                 progress_state["scheduled"] = True
@@ -415,6 +488,11 @@ def launch_ui(cfg, base_dir):
                 start_button.configure(state="normal")
                 if success:
                     pbar.set(1.0)
+                    pbar.set_progress_info("Downloading:100.0%")
+                    if open_folder_var.get():
+                        _open_path(dest)
+                    if open_file_var.get():
+                        _open_latest_file(dest)
                 else:
                     pbar.set_status("錯誤")
                     error_text = (msg or "").lower()
@@ -428,6 +506,11 @@ def launch_ui(cfg, base_dir):
                             "缺少 FFmpeg",
                             "找不到或無法執行 FFmpeg，請將 ffmpeg.exe 放入程式資料夾，或將 FFmpeg 加入系統 PATH 後再試一次。",
                         )
+                    elif "youtube 要求重新載入頁面" in error_text:
+                        messagebox.showwarning(
+                            "YouTube 驗證失敗",
+                            "請先按「檢查更新」更新 yt-dlp；若仍失敗，請重新匯入 YouTube Cookies.txt 後再試一次。",
+                        )
                     elif any(keyword in error_text for keyword in (
                             "cookie", "cookies.txt", "dpapi", "precondition failed", "http error 412")):
                         messagebox.showwarning(
@@ -436,10 +519,38 @@ def launch_ui(cfg, base_dir):
                         )
                 logbox.insert("end", f"結束：{msg}\n")
                 logbox.see("end")
+                history.add(base_dir, urlv, dest, fmt, quality, success, msg)
             root.after(0, _done)
 
+        def _open_path(path):
+            try:
+                if os.name == "nt":
+                    os.startfile(path)
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", path])
+                else:
+                    subprocess.Popen(["xdg-open", path])
+            except Exception as exc:
+                LOG.warning("Unable to open path %s: %s", path, exc)
+
+        def _open_latest_file(path):
+            try:
+                files = [os.path.join(path, name) for name in os.listdir(path)]
+                files = [f for f in files if os.path.isfile(f) and not f.endswith((".part", ".ytdl"))]
+                if files:
+                    _open_path(max(files, key=os.path.getmtime))
+            except Exception as exc:
+                LOG.warning("Unable to open latest file in %s: %s", path, exc)
+
         # if urls begins with file: delegate directly
+        advanced = {
+            "write_subtitles": subtitles_var.get(),
+            "embed_subtitles": embed_subtitles_var.get(),
+            "write_thumbnail": thumbnail_var.get(),
+            "add_metadata": metadata_var.get(),
+        }
         downloader.run_download(base_dir, urlv, dest, fmt, quality, cookie_browser="無", cookie_file=cookie_file,
+                                advanced=advanced,
                                 progress_callback=progress_cb, finished_callback=finished_cb)
 
     # start main loop

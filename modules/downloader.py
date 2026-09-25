@@ -67,12 +67,13 @@ def _browser_cookie_arg(browser):
     return browser.strip().lower()
 
 
-def _build_command(base_dir, urls, outdir, fmt, quality="預設", cookie_browser="無", cookie_file=""):
+def _build_command(base_dir, urls, outdir, fmt, quality="預設", cookie_browser="無", cookie_file="", advanced=None):
     """Build a yt-dlp command for one URL or a file: batch list."""
     exe = os.path.join(base_dir, "yt-dlp.exe")
     cmd = [exe] if os.path.exists(exe) else ["yt-dlp"]
 
-    cmd += ["--no-update", "--newline", "--progress-template", "Downloading:%(progress._percent_str)s",
+    cmd += ["--no-update", "--newline", "--progress-template",
+            "Downloading:%(progress._percent_str)s | %(progress._speed_str)s | ETA %(progress._eta_str)s",
             "--retries", "3", "--fragment-retries", "3", "--extractor-retries", "3",
             "--retry-sleep", "http:exp=1:20"]
 
@@ -114,14 +115,23 @@ def _build_command(base_dir, urls, outdir, fmt, quality="預設", cookie_browser
 
     outtmpl = os.path.join(outdir, "%(title)s.%(ext)s")
     cmd += ["-o", outtmpl]
+    advanced = advanced or {}
+    if advanced.get("write_subtitles"):
+        cmd += ["--write-subs", "--sub-langs", "all"]
+    if advanced.get("embed_subtitles"):
+        cmd += ["--embed-subs"]
+    if advanced.get("write_thumbnail"):
+        cmd += ["--write-thumbnail"]
+    if advanced.get("add_metadata"):
+        cmd += ["--add-metadata"]
     return cmd
 
 
-def run_download(base_dir, urls, outdir, fmt, quality="預設", cookie_browser="無", cookie_file="",
+def run_download(base_dir, urls, outdir, fmt, quality="預設", cookie_browser="無", cookie_file="", advanced=None,
                  progress_callback=None, finished_callback=None):
     t = threading.Thread(
         target=_download_thread,
-        args=(base_dir, urls, outdir, fmt, quality, cookie_browser, cookie_file,
+        args=(base_dir, urls, outdir, fmt, quality, cookie_browser, cookie_file, advanced,
               progress_callback, finished_callback),
         daemon=True,
     )
@@ -131,6 +141,9 @@ def run_download(base_dir, urls, outdir, fmt, quality="預設", cookie_browser="
 
 def _friendly_error(output, rc):
     text = output or ""
+    if "the page needs to be reloaded" in text.lower():
+        return ("YouTube 要求重新載入頁面，可能是 yt-dlp 版本、播放器驗證或登入狀態造成。"
+                "請先按「檢查更新」；若仍失敗，請重新匯入 YouTube Cookies.txt。")
     if "ffmpeg" in text.lower() or "ffprobe" in text.lower():
         return "FFmpeg 缺失或無法執行。"
     if ("older than 90 days" in text.lower()
@@ -149,7 +162,7 @@ def _friendly_error(output, rc):
     return f"Exit code {rc}"
 
 
-def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cookie_file,
+def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cookie_file, advanced,
                      progress_callback, finished_callback):
     os.makedirs(outdir, exist_ok=True)
     clean_batch_file = None
@@ -168,7 +181,7 @@ def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cooki
         if urls.startswith("file:"):
             clean_batch_file = _prepare_batch_file(urls[5:])
             command_urls = "file:" + clean_batch_file
-        cmd = _build_command(base_dir, command_urls, outdir, fmt, quality, cookie_browser, cookie_file)
+        cmd = _build_command(base_dir, command_urls, outdir, fmt, quality, cookie_browser, cookie_file, advanced)
         logger.get().info("Running command: %s", " ".join(shlex.quote(x) for x in cmd))
         try:
             p = subprocess.Popen(
@@ -215,6 +228,15 @@ def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cooki
                 opts["cookiesfrombrowser"] = (browser,)
             if fmt.lower() == "mp3":
                 opts["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}]
+            advanced = advanced or {}
+            if advanced.get("write_subtitles"):
+                opts.update({"writesubtitles": True, "subtitleslangs": ["all"]})
+            if advanced.get("embed_subtitles"):
+                opts["embedsubtitles"] = True
+            if advanced.get("write_thumbnail"):
+                opts["writethumbnail"] = True
+            if advanced.get("add_metadata"):
+                opts["addmetadata"] = True
             with ytdlp.YoutubeDL(opts) as ydl:
                 targets = _read_batch_urls(urls[5:]) if urls.startswith("file:") else [urls]
                 ydl.download(targets)
@@ -229,7 +251,7 @@ def _download_thread(base_dir, urls, outdir, fmt, quality, cookie_browser, cooki
             logger.get().debug("yt-dlp: %s", line)
             m = _PERCENT_RE.search(line)
             if m and progress_callback:
-                progress_callback(float(m.group(1)) / 100.0, line)
+                progress_callback(float(m.group(1).replace(",", ".")) / 100.0, line)
             elif progress_callback:
                 progress_callback(None, line)
         p.wait()
