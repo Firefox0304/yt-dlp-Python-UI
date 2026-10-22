@@ -1,13 +1,13 @@
 # modules/logger.py
-"""PrismLauncher-style session logging.
+"""PrismLauncher 風格的工作階段日誌。
 
-The active session is always written to logs/latest.log. When the application
-starts again, the previous latest.log is moved to a timestamped archive. This
-keeps the most recent log easy to find while preserving past sessions.
+目前這次執行永遠寫入 logs/latest.log；下次啟動時，上一份 latest.log 會被改名成
+帶時間戳記的封存檔，並只保留最近 _MAX_ARCHIVES 份。
 """
 import logging
 import os
 import shutil
+import sys
 from datetime import datetime
 
 _LOGGER_NAME = "ytgui"
@@ -28,7 +28,7 @@ def _archive_previous_latest(log_dir):
     try:
         shutil.move(latest, archive)
     except OSError:
-        # If another process still owns the file, keep latest.log and continue.
+        # 若另一個行程還握著檔案，就保留 latest.log 繼續執行。
         pass
 
     archives = []
@@ -46,10 +46,7 @@ def _archive_previous_latest(log_dir):
 
 
 def setup_logging(path_or_dir):
-    """Initialize logging with latest.log plus timestamped session archives.
-
-    ``path_or_dir`` may be a log directory or the legacy ``.../app.log`` path.
-    """
+    """初始化日誌。path_or_dir 可以是資料夾，或舊版的 .../app.log 路徑。"""
     if os.path.splitext(os.path.basename(path_or_dir))[1].lower() == ".log":
         log_dir = os.path.dirname(path_or_dir)
     else:
@@ -62,7 +59,7 @@ def setup_logging(path_or_dir):
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
 
-    # Avoid duplicate entries if the UI is restarted in the same interpreter.
+    # 同一個直譯器重啟 UI 時，避免重複輸出。
     for handler in logger.handlers[:]:
         handler.close()
         logger.removeHandler(handler)
@@ -73,16 +70,16 @@ def setup_logging(path_or_dir):
     fh = logging.FileHandler(latest_path, mode="w", encoding="utf-8")
     fh.setFormatter(fmt)
     fh.setLevel(logging.DEBUG)
-
-    sh = logging.StreamHandler()
-    sh.setFormatter(fmt)
-    sh.setLevel(logging.INFO)
-
     logger.addHandler(fh)
-    logger.addHandler(sh)
+
+    # pythonw.exe 沒有 stderr，這時不要掛 StreamHandler。
+    if sys.stderr is not None:
+        sh = logging.StreamHandler()
+        sh.setFormatter(fmt)
+        sh.setLevel(logging.INFO)
+        logger.addHandler(sh)
+
     logger.info("Logger initialized; active log: %s", latest_path)
-    global log
-    log = logger
     return log_dir
 
 
