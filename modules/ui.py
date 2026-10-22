@@ -15,8 +15,8 @@ from modules.version import APP_VERSION
 
 LOG = logger.get()
 
-APP_TITLE = f"yt-dlp-python-UI v{APP_VERSION} | 作者：Firefox_0304 | 協助Bot：ChatGPT & Manus"
-BANNER_TEXT = f"yt-dlp-download-python-UI v{APP_VERSION}    作者：Firefox_0304    協助Bot：ChatGPT & Manus"
+APP_TITLE = f"yt-dlp-python-UI v{APP_VERSION} | 作者：Firefox_0304 | 協助Bot：ChatGPT  Manus  Claude"
+BANNER_TEXT = f"yt-dlp-download-python-UI v{APP_VERSION}    作者：Firefox_0304    協助Bot：ChatGPT  Manus  Claude"
 
 FORMATS = ["mp4", "mp3", "mkv", "webm", "wav", "m4a", "flac"]
 QUALITIES = ["預設", "8K", "4K", "2K", "1080P", "720P", "480P", "240P"]
