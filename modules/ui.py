@@ -15,12 +15,13 @@ from modules.version import APP_VERSION
 
 LOG = logger.get()
 
-APP_TITLE = f"yt-dlp-python-UI v{APP_VERSION} | 作者：Firefox_0304 | 協助Bot：ChatGPT  Manus  Claude"
-BANNER_TEXT = f"yt-dlp-download-python-UI v{APP_VERSION}    作者：Firefox_0304    協助Bot：ChatGPT  Manus  Claude"
+APP_TITLE = f"yt-dlp-python-UI v{APP_VERSION} | 作者：Firefox_0304 | 協助Bot：ChatGPT & Manus"
+BANNER_TEXT = f"yt-dlp-download-python-UI v{APP_VERSION}    作者：Firefox_0304    協助Bot：ChatGPT & Manus"
 
 FORMATS = ["mp4", "mp3", "mkv", "webm", "wav", "m4a", "flac"]
 QUALITIES = ["預設", "8K", "4K", "2K", "1080P", "720P", "480P", "240P"]
-BROWSERS = ["無", "chrome", "edge", "firefox", "brave", "opera", "vivaldi", "chromium"]
+# 瀏覽器 Cookie 選單的顯示文字（首字母大寫）。傳給 yt-dlp 時 downloader 會轉成小寫，所以顯示文字不影響功能。
+BROWSERS = ["無", "Chrome", "Edge", "Firefox", "Brave", "Opera", "Vivaldi", "Chromium"]
 
 # 主題：切換鈕由左到右的順序；顯示的文字與設定檔存的值相同。預設 System（跟隨 Windows 的淺色／深色設定）
 APPEARANCE_MODES = ("Light", "System", "Dark")
@@ -49,6 +50,12 @@ HELP_TEXT = (
     "【進階】\n"
     "『記錄已下載』會用 config/archive.txt 記住下載過的影片，之後自動略過重複。"
 )
+
+
+def normalize_browser(value):
+    """把設定檔裡的瀏覽器名稱對應到選單項目（不分大小寫，舊版存的是小寫）；對不上就是「無」。"""
+    wanted = str(value or "").strip().lower()
+    return next((name for name in BROWSERS if name.lower() == wanted), BROWSERS[0])
 
 
 def normalize_appearance(value):
@@ -355,7 +362,7 @@ class App:
 
         ctk.CTkLabel(adv, text="瀏覽器 Cookie：").pack(anchor="w", pady=(8, 0))
         self.browser_combo = ctk.CTkComboBox(adv, values=BROWSERS, state="readonly")
-        self.browser_combo.set(cfg.get("cookie_browser", "無") if cfg.get("cookie_browser", "無") in BROWSERS else "無")
+        self.browser_combo.set(normalize_browser(cfg.get("cookie_browser")))
         self.browser_combo.pack(fill="x")
 
     def _build_bottom(self):

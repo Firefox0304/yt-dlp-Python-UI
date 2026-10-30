@@ -31,6 +31,7 @@
   不是 Windows 或沒有 winget 時不顯示該按鈕。
 
 ## 其他
+- 瀏覽器 Cookie 選單的文字改為首字母大寫（Chrome、Edge、Firefox、Brave、Opera、Vivaldi、Chromium）；舊設定檔裡的小寫值照常對應。
 - 偵測不到 FFmpeg 時（開始下載前、檢查更新、下載中 yt-dlp 回報 FFmpeg 缺失），提示說明並可一鍵開啟 FFmpeg 官網下載頁
   （https://www.ffmpeg.org/download.html）；說明會依作業系統附上安裝提示。
   Linux（有 apt，即 Debian／Ubuntu 系）會顯示 `sudo apt install ffmpeg`，並在下載頁按鈕旁提供「複製安裝命令」；
