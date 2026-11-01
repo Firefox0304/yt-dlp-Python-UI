@@ -478,7 +478,11 @@ class App:
             self.url_entry.insert(0, "file:" + ex)
             self._log("已載入 example.txt")
         else:
-            messagebox.showinfo("範例不存在", "請把 example/example.txt 放進專案中")
+            messagebox.showinfo(
+                "範例不存在",
+                "找不到 example/example.txt。\n\n"
+                "請把 config/settings.json 的 examplegeneration 改成 false（或刪除那一行），重新啟動程式就會再產生。",
+            )
 
     def _collect_options(self):
         return downloader.DownloadOptions(

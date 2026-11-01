@@ -184,7 +184,9 @@ def _load_modules(base_dir, loading):
     loading.set_progress(70, "正在讀取設定")
     os.makedirs(os.path.join(base_dir, "Download"), exist_ok=True)
     logger.setup_logging(os.path.join(base_dir, "logs"))
-    cfg = config_manager.load_or_init(os.path.join(base_dir, "config", "settings.json"))
+    config_path = os.path.join(base_dir, "config", "settings.json")
+    cfg = config_manager.load_or_init(config_path)
+    config_manager.ensure_example(base_dir, config_path, cfg)
     loading.set_progress(78, "正在建立主視窗")
     return cfg
 
