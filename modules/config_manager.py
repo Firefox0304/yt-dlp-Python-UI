@@ -22,6 +22,8 @@ DEFAULT_CONFIG = {
     "add_metadata": False,
     "number_playlist_items": False,
     "use_archive": False,
+    "concurrent_download": False,
+    "concurrent_fragments": 4,
     "filename_template": "%(title)s.%(ext)s",
 }
 

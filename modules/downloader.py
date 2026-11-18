@@ -32,6 +32,8 @@ QUALITY_HEIGHTS = {
 
 DEFAULT_SUBTITLE_LANGS = "zh-Hant,zh-TW,en.*"
 DEFAULT_FILENAME_TEMPLATE = "%(title)s.%(ext)s"
+FRAGMENT_CHOICES = (4, 8, 16)  # 下載加速可選的切片數（yt-dlp -N）
+DEFAULT_FRAGMENTS = 4
 NO_COOKIE_VALUES = ("", "無", "none", "None", "不使用")
 
 PROGRESS_TEMPLATE = ("Downloading:%(progress._percent_str)s | "
@@ -86,6 +88,8 @@ class DownloadOptions:
     add_metadata: bool = False
     number_playlist_items: bool = False  # 只在下載整個播放清單時生效
     use_archive: bool = False
+    concurrent_download: bool = False  # 啟用下載加速（yt-dlp -N，只對分片式串流有效）
+    concurrent_fragments: int = 4
     filename_template: str = DEFAULT_FILENAME_TEMPLATE
 
 
@@ -281,6 +285,15 @@ def extract_output_path(line):
     return None
 
 
+def normalize_fragments(value):
+    """切片數只接受 FRAGMENT_CHOICES 內的值，其他（含壞掉的設定值）一律退回預設。"""
+    try:
+        number = int(str(value).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_FRAGMENTS
+    return number if number in FRAGMENT_CHOICES else DEFAULT_FRAGMENTS
+
+
 def _browser_cookie_arg(browser):
     if not browser or browser.strip() in NO_COOKIE_VALUES:
         return None
@@ -315,6 +328,9 @@ def build_command(base_dir, eng, item, outdir, opts):
 
     cmd += _network_args(url, opts)
     cmd += ["--yes-playlist" if item.playlist else "--no-playlist"]
+
+    if opts.concurrent_download:
+        cmd += ["-N", str(normalize_fragments(opts.concurrent_fragments))]
 
     if opts.use_archive:
         archive = os.path.join(base_dir, "config", "archive.txt")

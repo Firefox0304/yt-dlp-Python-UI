@@ -48,7 +48,11 @@ HELP_TEXT = (
     "出於安全考量，Cookies.txt 的路徑不會被記住，每次啟動都要重新選擇。\n"
     "也可在右側選擇瀏覽器直接讀取 Cookie（Chrome / Edge 新版可能無法解密）。\n\n"
     "【進階】\n"
-    "『記錄已下載』會用 config/archive.txt 記住下載過的影片，之後自動略過重複。"
+    "『記錄已下載』會用 config/archive.txt 記住下載過的影片，之後自動略過重複。\n\n"
+    "【下載加速】\n"
+    "勾選『啟用下載加速』後，會以 yt-dlp 的 -N 同時下載多個切片（可選 4／8／16）。\n"
+    "只對分片式串流（如 YouTube 的 DASH、HLS/m3u8）有效，一般單一檔案不會變快；\n"
+    "切片數太高可能被網站限速或回報 HTTP 429。"
 )
 
 
@@ -365,6 +369,20 @@ class App:
         self.browser_combo.set(normalize_browser(cfg.get("cookie_browser")))
         self.browser_combo.pack(fill="x")
 
+        self.var_speedup = tk.BooleanVar(master=self.root, value=bool(cfg.get("concurrent_download", False)))
+        ctk.CTkCheckBox(adv, text="啟用下載加速", variable=self.var_speedup,
+                        command=self._update_speedup_state).pack(anchor="w", pady=(10, 2))
+        ctk.CTkLabel(adv, text="切片數：").pack(anchor="w", pady=(4, 0))
+        self.fragments_combo = ctk.CTkComboBox(
+            adv, values=[str(n) for n in downloader.FRAGMENT_CHOICES], state="readonly")
+        self.fragments_combo.set(str(downloader.normalize_fragments(cfg.get("concurrent_fragments"))))
+        self.fragments_combo.pack(fill="x")
+        self._update_speedup_state()
+
+    def _update_speedup_state(self):
+        """沒勾選「啟用下載加速」時，切片數選單變灰、不能操作。"""
+        self.fragments_combo.configure(state="readonly" if self.var_speedup.get() else "disabled")
+
     def _build_bottom(self):
         ctk.CTkButton(self.bottom_frame, text="關閉", command=self.on_close).pack(side="left", padx=12, pady=12)
         ctk.CTkLabel(self.bottom_frame, text="主題：").pack(side="left", padx=(20, 4))
@@ -497,6 +515,8 @@ class App:
             add_metadata=bool(self.var_meta.get()),
             number_playlist_items=bool(self.var_number.get()),
             use_archive=bool(self.var_archive.get()),
+            concurrent_download=bool(self.var_speedup.get()),
+            concurrent_fragments=downloader.normalize_fragments(self.fragments_combo.get()),
             filename_template=self.cfg.get("filename_template") or downloader.DEFAULT_FILENAME_TEMPLATE,
         )
 
@@ -518,6 +538,8 @@ class App:
             "add_metadata": opts.add_metadata,
             "number_playlist_items": opts.number_playlist_items,
             "use_archive": opts.use_archive,
+            "concurrent_download": opts.concurrent_download,
+            "concurrent_fragments": opts.concurrent_fragments,
         })
         try:
             config_manager.save(self.config_path, self.cfg)
