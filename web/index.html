@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>yt-dlp Python UI</title>
+<style>
+@font-face{font-family:"Noto Sans TC";font-weight:400 500;src:url("../fonts/NotoSansTC-Regular.ttf")}
+@font-face{font-family:"Noto Sans TC";font-weight:700;src:url("../fonts/NotoSansTC-Bold.ttf")}
+:root{
+  --bg:#f2f4f9;--surface:#fff;--field:#f5f6fb;--text:#151a26;--muted:#5d6678;--line:#e0e4ee;--hover:rgba(90,104,140,.14);
+  --accent:#3454f4;--ink:#fff;--accent-soft:#e6ebff;--ok:#12906b;--shadow:0 1px 2px rgba(20,28,60,.05),0 12px 32px -12px rgba(20,28,60,.14);
+  --bad:#c0392b;--scrim:rgba(14,18,30,.42);--ease:cubic-bezier(.3,.9,.3,1);color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e111a;--surface:#171b27;--field:#11141e;--text:#e8ebf4;--muted:#9ba4b9;--line:#272d40;--hover:rgba(255,255,255,.11);
+  --accent:#8199ff;--ink:#0e111a;--accent-soft:#222a4a;--ok:#4fd1a5;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -12px rgba(0,0,0,.6);--bad:#ff7b6e;--scrim:rgba(0,0,0,.55);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e111a;--surface:#171b27;--field:#11141e;--text:#e8ebf4;--muted:#9ba4b9;--line:#272d40;--hover:rgba(255,255,255,.11);
+  --accent:#8199ff;--ink:#0e111a;--accent-soft:#222a4a;--ok:#4fd1a5;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -12px rgba(0,0,0,.6);--bad:#ff7b6e;--scrim:rgba(0,0,0,.55);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--text);font:15px/1.6 "Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;transition:background .35s,color .35s;user-select:none}
+input,.log{user-select:text}
+.app{display:flex;flex-direction:column;height:100%;border:1px solid var(--line);background:var(--bg);transition:background .35s,transform var(--wt,.5s) cubic-bezier(.2,.7,.3,1),opacity var(--wt,.5s) ease-in;transform-origin:center}
+.app.closing{transform:scale(.95);opacity:0;pointer-events:none}
+.app.hiding{transform:translateY(1500px) scale(.5);opacity:0;pointer-events:none}
+.app[data-max="1"]{border-color:transparent}
+
+/* 標題列 */
+.titlebar{flex:none;display:flex;align-items:center;gap:12px;height:52px;padding:0 10px 0 16px;background:var(--surface);border-bottom:1px solid var(--line);transition:background .35s}
+.drag{flex:1;display:flex;align-items:center;gap:10px;height:100%;min-width:0}
+.drag svg{flex:none}
+.name{font-weight:700;font-size:15px;white-space:nowrap}
+.ver{padding:1px 9px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:500}
+.wc{display:flex;gap:2px}
+.wbtn{width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:background .2s,color .2s}
+.wbtn:hover{background:var(--hover);color:var(--text)}
+.wbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.wbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.app[data-max="1"] .i-max,.app:not([data-max="1"]) .i-restore{display:none}
+.seg{position:relative;display:inline-grid;grid-template-columns:repeat(3,1fr);padding:3px;border-radius:99px;background:var(--field);border:1px solid var(--line)}
+.seg i{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/3);border-radius:99px;background:var(--accent);transition:transform .35s var(--ease)}
+.seg button{position:relative;z-index:1;border:0;background:none;padding:2px 13px;border-radius:99px;font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer;transition:color .25s}
+.seg button[aria-pressed=true]{color:var(--ink)}
+.rs{position:fixed;z-index:50}
+.app[data-max="1"]~.rs{display:none}
+.rs[data-e=n]{top:0;left:10px;right:10px;height:5px;cursor:ns-resize}.rs[data-e=s]{bottom:0;left:10px;right:10px;height:5px;cursor:ns-resize}
+.rs[data-e=w]{left:0;top:10px;bottom:10px;width:5px;cursor:ew-resize}.rs[data-e=e]{right:0;top:10px;bottom:10px;width:5px;cursor:ew-resize}
+.rs[data-e=nw]{top:0;left:0;width:10px;height:10px;cursor:nwse-resize}.rs[data-e=se]{bottom:0;right:0;width:10px;height:10px;cursor:nwse-resize}
+.rs[data-e=ne]{top:0;right:0;width:10px;height:10px;cursor:nesw-resize}.rs[data-e=sw]{bottom:0;left:0;width:10px;height:10px;cursor:nesw-resize}
+
+/* 內容 */
+.content{flex:1;display:flex;flex-direction:column;overflow:auto;padding:20px;zoom:var(--zoom,1)}
+.content.settle{animation:settle .32s var(--ease)}
+@keyframes settle{from{opacity:.4;transform:scale(.975)}}
+.grid{flex:1;display:grid;grid-template-columns:minmax(0,1fr) clamp(300px,24vw,440px);gap:18px;align-items:stretch;width:100%}
+main.card,aside.card{display:flex;flex-direction:column}
+.pin{margin-top:auto;padding-top:14px}.pin hr{margin-top:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:var(--shadow);transition:background .35s,border-color .35s}
+label.t{display:block;margin:0 0 6px;font-size:13px;color:var(--muted)}
+.field,select{width:100%;height:44px;padding:0 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--field);color:var(--text);font:inherit;outline:0;transition:border-color .2s,box-shadow .2s,opacity .3s,background .35s}
+.field:focus,select:focus-visible{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.field:disabled{opacity:.55}
+.field[readonly]{cursor:default;text-overflow:ellipsis}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(-45deg,transparent 50%,var(--muted) 50%);background-position:calc(100% - 20px) 19px,calc(100% - 15px) 19px;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px;cursor:pointer}
+select:disabled{opacity:.4;cursor:not-allowed}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mt{margin-top:16px!important}
+.line{display:flex;gap:10px}
+.wrap{position:relative;flex:1;min-width:0}
+.wrap .field{padding-right:42px}
+.clr{position:absolute;right:7px;top:7px;width:30px;height:30px;border:0;border-radius:50%;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .2s,background .2s}
+.clr.on{opacity:1;pointer-events:auto}.clr:hover{background:var(--hover);color:var(--text)}
+.clr svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.btn{height:44px;padding:0 18px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--text);font:inherit;font-weight:500;cursor:pointer;transition:transform .15s,background .25s,border-color .25s,opacity .25s,box-shadow .25s;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:focus-visible,.seg button:focus-visible,.chk input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--ink);box-shadow:0 8px 20px -8px var(--accent)}
+.btn.block{width:100%}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.actions .primary{min-width:130px}
+.actions .chk{padding:0 4px 0 8px}
+.lanes{display:flex;gap:4px;height:14px;margin:22px 0 10px;transition:gap .5s var(--ease)}
+.lanes.merged{gap:0}
+.lanes.merged .lane{border-radius:0;border-left-width:0;border-right-width:0}
+.lanes.merged .lane:first-child{border-radius:99px 0 0 99px;border-left-width:1px}
+.lanes.merged .lane:last-child{border-radius:0 99px 99px 0;border-right-width:1px}
+.lanes.merged .lane:only-child{border-radius:99px}
+.lanes.merged .lane+.lane{margin-left:-.5px}  /* 蓋住次像素縫隙 */
+.lanes.merged .lane b{border-radius:0}
+.lane{flex:1;border-radius:99px;background:var(--field);border:1px solid var(--line);overflow:hidden;animation:pop .4s var(--ease) both;transition:border-radius .5s var(--ease),border-width .5s var(--ease)}
+.lane b{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .15s linear,border-radius .5s var(--ease)}
+@keyframes pop{from{transform:scaleY(.2);opacity:0}}
+.stat{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--muted)}
+.stat strong{font-size:26px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.logwrap{position:relative;flex:1;min-height:160px;margin-top:16px}  /* 日誌用絕對定位填滿這個容器，內容再多也不會撐開版面 */
+.log{position:absolute;inset:0;overflow:auto;padding:14px 16px;border-radius:14px;background:var(--field);border:1px solid var(--line);font:12.5px/1.75 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--muted);transition:background .35s}
+.log div{animation:in .3s var(--ease) both;word-break:break-all}
+.log .ok{color:var(--ok)}.log .hl{color:var(--text)}
+@keyframes in{from{opacity:0;transform:translateX(-8px)}}
+.chk{display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer;font-size:14px}
+.chk input{position:absolute;opacity:0}
+.chk span{flex:none;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);background:var(--field);display:grid;place-items:center;transition:background .25s,border-color .25s,transform .2s}
+.chk span::after{content:"";width:5px;height:10px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);margin-top:-2px;transition:transform .3s var(--ease)}
+.chk input:checked+span{background:var(--accent);border-color:var(--accent)}
+.chk input:checked+span::after{transform:rotate(45deg) scale(1)}
+.chk:active span{transform:scale(.88)}
+.side h2{margin:0 0 10px;font-size:15px;font-weight:700}
+.side hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.hint{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.6}
+.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,24px);padding:12px 22px;border-radius:99px;background:var(--text);color:var(--bg);font-weight:500;opacity:0;pointer-events:none;transition:.4s var(--ease);z-index:90}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.note{margin:20px 0 0;text-align:center;font-size:12px;color:var(--muted)}.note[hidden]{display:none}
+
+/* 彈窗 */
+.ov{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .25s}
+.ov.show{opacity:1;pointer-events:auto}
+.dlg{position:relative;width:min(460px,100%);max-height:90vh;overflow:auto;padding:28px 28px 24px;border-radius:24px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);transform:translateY(12px) scale(.96);transition:transform .35s var(--ease)}
+.ov.show .dlg{transform:none}
+.dlg h3{margin:0 40px 10px 0;font-size:17px}
+.dlg p{margin:0;color:var(--muted);white-space:pre-line;font-size:14px;line-height:1.7;user-select:text}
+.dlg .x{position:absolute;right:14px;top:14px}
+.dlg .field{margin-top:16px}
+.mbtns{display:flex;flex-direction:column;gap:8px;margin-top:20px}
+.dlg.wide{width:min(880px,100%)}
+.dlg .sub{margin-top:10px;font-size:12px}
+.code{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:var(--field);border:1px solid var(--line);font:12.5px/1.6 ui-monospace,"Cascadia Mono",Consolas,monospace;white-space:pre-wrap;word-break:break-all;user-select:text}
+.code[hidden],.dlg p[hidden]{display:none}
+.hist{display:flex;flex-direction:column;margin-top:14px;max-height:52vh;overflow:auto}
+.hrow{display:flex;align-items:baseline;gap:10px;padding:7px 8px;border-radius:10px;font-size:13px;transition:background .2s}
+.hrow:hover{background:var(--hover)}
+.hrow .tm{flex:none;color:var(--muted);font:12px ui-monospace,Consolas,monospace}
+.hrow .st{flex:none;font-weight:500}.hrow .st.ok{color:var(--ok)}.hrow .st.no{color:var(--bad)}
+.hrow .mt2{flex:none;color:var(--muted)}
+.lnk{flex:1;min-width:0;border:0;background:none;padding:0;color:var(--accent);font:inherit;text-align:left;text-decoration:underline;text-underline-offset:3px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.credit{margin-top:14px;font-size:12px;color:var(--muted)}
+.btn.danger{color:var(--bad);border-color:var(--line)}.btn.danger:hover:not(:disabled){border-color:var(--bad)}
+.qa{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.qa .btn{height:40px;padding:0 10px;font-size:14px}.qa .wide2{grid-column:1/-1}
+.mbtns:empty{display:none}
+.mbtns .btn{height:auto;min-height:44px;padding:10px 18px;white-space:pre-line;line-height:1.4}
+
+@media (max-width:860px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="titlebar">
+    <div class="drag" id="drag">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M12 6v8m0 0-3.2-3.2M12 14l3.2-3.2M7.5 17.5h9" fill="none" stroke="var(--ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="name">yt-dlp Python UI</span><span class="ver" id="ver">v6.0</span>
+    </div>
+    <div class="seg" id="seg" role="group" aria-label="主題"><i></i>
+      <button aria-pressed="false">Light</button><button aria-pressed="true">System</button><button aria-pressed="false">Dark</button>
+    </div>
+    <div class="wc">
+      <button class="wbtn" id="wmin" aria-label="最小化"><svg viewBox="0 0 14 14"><path d="M2.5 7h9"/></svg></button>
+      <button class="wbtn" id="wmax" aria-label="最大化或還原"><svg class="i-max" viewBox="0 0 14 14"><rect x="2.5" y="2.5" width="9" height="9" rx="2"/></svg><svg class="i-restore" viewBox="0 0 14 14"><rect x="2.5" y="4.5" width="7" height="7" rx="1.8"/><path d="M5 4.5V4a1.5 1.5 0 0 1 1.5-1.5H10A1.5 1.5 0 0 1 11.5 4v3.5A1.5 1.5 0 0 1 10 9h-.5"/></svg></button>
+      <button class="wbtn" id="wclose" aria-label="關閉"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+    </div>
+  </div>
+
+  <div class="content"><div class="grid">
+    <main class="card">
+      <label class="t" for="url">網址</label>
+      <div class="line">
+        <div class="wrap"><input class="field" id="url" placeholder="貼上影片或播放清單網址，按 Enter 開始" autocomplete="off"><button class="clr" id="urlclr" type="button" aria-label="清除網址"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+        <button class="btn" id="batch" type="button">匯入批次下載</button>
+      </div>
+      <div class="mt"><label class="t" for="ckf">Cookie 檔</label>
+        <div class="line">
+          <div class="wrap"><input class="field" id="ckf" placeholder="尚未匯入（優先於瀏覽器 Cookie，路徑不會被記住）" readonly><button class="clr" id="ckclr" type="button" aria-label="清除 Cookie 檔"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+          <button class="btn" id="ckpick" type="button">匯入 Cookies.txt</button>
+        </div></div>
+      <div class="row mt">
+        <div><label class="t" for="fmt">格式</label><select id="fmt"><option>mp4</option><option>mp3</option><option>mkv</option><option>webm</option><option>wav</option><option>m4a</option><option>flac</option></select></div>
+        <div><label class="t" for="qual">畫質</label><select id="qual"><option>預設</option><option>8K</option><option>4K</option><option>2K</option><option>1080P</option><option>720P</option><option>480P</option><option>240P</option></select></div>
+      </div>
+      <div class="mt"><label class="t" for="dir">儲存位置</label>
+        <div class="line">
+          <div class="wrap"><input class="field" id="dir" value="Download" readonly><button class="clr on" id="dirclr" type="button" aria-label="重設為預設資料夾" title="重設為預設資料夾"><svg viewBox="0 0 14 14"><path d="M2.5 7a4.5 4.5 0 1 0 1.4-3.2M2.5 2.5v2.6h2.6"/></svg></button></div>
+          <button class="btn" id="pick" type="button">瀏覽</button>
+        </div></div>
+      <div class="actions mt">
+        <button class="btn primary" id="go" type="button">開始下載</button>
+        <button class="btn" id="stop" type="button" disabled>取消下載</button>
+        <button class="btn" id="info" type="button">讀取影片資訊</button>
+        <label class="chk"><input type="checkbox" id="ofile"><span></span>開啟檔案</label>
+        <label class="chk"><input type="checkbox" id="ofolder"><span></span>開啟輸出資料夾</label>
+      </div>
+      <div class="lanes" id="lanes" aria-hidden="true"></div>
+      <div class="stat"><span id="state">待命</span><strong id="pct">0%</strong><span id="speed">—</span></div>
+      <div class="logwrap"><div class="log" id="log" role="log" aria-live="polite"><div>準備就緒。貼上網址後按「開始下載」。</div></div></div>
+    </main>
+
+    <aside class="card side">
+      <h2>快速操作</h2>
+      <div class="qa">
+        <button class="btn wide2" id="example" type="button">載入範例</button>
+        <button class="btn" id="upd" type="button">檢查更新</button>
+        <button class="btn" id="help" type="button">說明</button>
+        <button class="btn" id="hist" type="button">下載歷史</button>
+        <button class="btn" id="diag" type="button">系統診斷</button>
+      </div>
+      <hr>
+      <h2>進階下載</h2>
+      <label class="chk"><input type="checkbox" id="subs"><span></span>下載字幕</label>
+      <label class="chk"><input type="checkbox" id="embed"><span></span>嵌入字幕</label>
+      <label class="chk"><input type="checkbox" id="thumb"><span></span>下載縮圖</label>
+      <label class="chk"><input type="checkbox" id="meta"><span></span>加入影片資訊</label>
+      <label class="chk"><input type="checkbox" id="num"><span></span>播放清單自動編號</label>
+      <label class="chk"><input type="checkbox" id="arch"><span></span>記錄已下載（略過重複）</label>
+      <label class="t mt" for="langs">字幕語言</label>
+      <input class="field" id="langs" autocomplete="off">
+      <label class="t mt" for="ck">瀏覽器 Cookie</label>
+      <select id="ck"><option>無</option><option>Chrome</option><option>Edge</option><option>Firefox</option><option>Brave</option><option>Opera</option><option>Vivaldi</option><option>Chromium</option></select>
+      <div class="pin"><hr>
+      <label class="chk"><input type="checkbox" id="boost"><span></span>啟用下載加速</label>
+      <label class="t" for="frag">切片數</label>
+      <select id="frag" disabled><option>4</option><option>8</option><option>16</option></select>
+      <p class="hint">同時下載多個切片，只對分片式串流有效（如 m3u8／HLS、DASH 清單）；遇到不支援的影片，進度條會自動合併成一條。</p></div>
+    </aside>
+  </div>
+  <p class="note" id="note" hidden>目前是瀏覽器預覽模式：下載過程為模擬，檔案對話框與視窗按鈕不會作用。</p>
+  </div>
+</div>
+<div class="rs" data-e="n"></div><div class="rs" data-e="s"></div><div class="rs" data-e="w"></div><div class="rs" data-e="e"></div>
+<div class="rs" data-e="nw"></div><div class="rs" data-e="ne"></div><div class="rs" data-e="sw"></div><div class="rs" data-e="se"></div>
+
+<div class="ov" id="ov" aria-hidden="true"><div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="mt">
+  <button class="wbtn x" id="mx" type="button" aria-label="關閉視窗"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+  <h3 id="mt"></h3><p id="mb"></p><pre class="code" id="mc" hidden></pre><p class="sub" id="mn" hidden></p><div id="mnode"></div><input class="field" id="mi" hidden autocomplete="off"><div class="mbtns" id="mbtns"></div>
+</div></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $=id=>document.getElementById(id), root=document.documentElement, app=$("app");
+const api=()=>window.pywebview&&window.pywebview.api;
+const modes=["Light","System","Dark"];
+let ready=false,running=false,cells=[],timer=null,cookieFile="",defaultDir="Download";
+
+/* ---------- 主題 ---------- */
+const seg=$("seg");
+function setMode(m,save){
+  m==="System"?root.removeAttribute("data-theme"):root.setAttribute("data-theme",m.toLowerCase());
+  seg.querySelector("i").style.transform=`translateX(${modes.indexOf(m)*100}%)`;
+  seg.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.textContent===m));
+  if(save)persist({appearance:m});
+}
+seg.querySelectorAll("button").forEach(b=>b.onclick=()=>setMode(b.textContent,true));
+setMode("System");
+
+/* ---------- 視窗控制 ---------- */
+$("wmin").onclick=()=>api()&&api().win_minimize();
+$("wmax").onclick=()=>api()&&api().win_toggle_maximize();
+let closing=false;
+$("wclose").onclick=()=>{if(!api()||closing)return;closing=true;app.style.removeProperty("--wt");app.classList.add("closing");api().win_close()};
+// 標題列拖曳視窗由 Python 處理（不用 pywebview 的拖曳區）；最大化時不拖曳（要移動請先還原）
+// 原生移動迴圈會吃掉放開滑鼠的事件，dblclick 不可靠，所以雙擊改用兩次「按下」的間隔自己判斷（DBL_MS 毫秒內）
+const DBL_MS=160;let lastDown={t:0,x:0,y:0};
+$("drag").onmousedown=e=>{
+  if(e.button!==0||!api())return;
+  e.preventDefault();
+  const now=performance.now();
+  if(now-lastDown.t<=DBL_MS&&Math.abs(e.screenX-lastDown.x)<=4&&Math.abs(e.screenY-lastDown.y)<=4){
+    lastDown.t=0;api().win_toggle_maximize();return}  // 雙擊：最大化／還原，不啟動拖曳
+  lastDown={t:now,x:e.screenX,y:e.screenY};
+  if(app.dataset.max!=="1")api().win_start_drag()};
+document.querySelectorAll(".rs").forEach(h=>h.onmousedown=e=>{e.preventDefault();api()&&api().win_start_resize(h.dataset.e)});
+
+/* ---------- 小工具 ---------- */
+const log=(t,c="")=>{const d=document.createElement("div");d.className=c;d.textContent=t;$("log").append(d);$("log").scrollTop=1e9;
+  while($("log").childElementCount>1500)$("log").firstChild.remove()};
+const toast=t=>{const e=$("toast");e.textContent=t;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),2200)};
+const shake=()=>{const f=$("url");f.classList.remove("shake");void f.offsetWidth;f.classList.add("shake");f.focus()};
+const frags=()=>$("boost").checked?+$("frag").value:1;
+function setSel(id,v){const s=$(id);if(![...s.options].some(o=>o.value===v)){const o=document.createElement("option");o.textContent=v;s.append(o)}s.value=v}
+function syncClear(){$("urlclr").classList.toggle("on",!!$("url").value&&!running);$("ckclr").classList.toggle("on",!!cookieFile&&!running)}
+
+/* ---------- 彈窗 ---------- */
+let modalDone=null;
+function closeModal(res){
+  if(!modalDone)return;
+  const done=modalDone;modalDone=null;
+  $("ov").classList.remove("show");$("ov").setAttribute("aria-hidden","true");
+  done(res);
+}
+function askModal({title,body="",code="",note="",node=null,wide=false,input=null,buttons=[]}){
+  return new Promise(resolve=>{
+    modalDone=resolve;
+    $("dlg").classList.toggle("wide",wide);
+    $("mt").textContent=title;$("mb").textContent=body;$("mb").hidden=!body;
+    $("mc").textContent=code;$("mc").hidden=!code;$("mn").textContent=note;$("mn").hidden=!note;
+    $("mnode").replaceChildren(...(node?[node]:[]));
+    const mi=$("mi");mi.hidden=!input;mi.value="";if(input)mi.placeholder=input;
+    const box=$("mbtns");box.innerHTML="";
+    buttons.forEach(b=>{const e=document.createElement("button");e.type="button";e.className="btn"+(b.primary?" primary":"")+(b.danger?" danger":"");
+      e.textContent=b.label;
+      e.onclick=b.keep?()=>b.keep(e):()=>closeModal({id:b.id,value:mi.value.trim()});  // keep：按了不關閉彈窗（例如複製）
+      box.append(e)});
+    $("ov").classList.add("show");$("ov").setAttribute("aria-hidden","false");
+    setTimeout(()=>(box.querySelector(".primary")||(input?mi:$("mx"))).focus(),50);
+  });
+}
+async function copyText(t){
+  try{await navigator.clipboard.writeText(t);return true}catch(_){}
+  const a=document.createElement("textarea");a.value=t;document.body.append(a);a.select();
+  let ok=false;try{ok=document.execCommand("copy")}catch(_){}a.remove();return ok;
+}
+const copyButton=(label,text)=>({label,keep:async e=>{const ok=await copyText(text);e.textContent=ok?"已複製 ✓":"複製失敗";setTimeout(()=>e.textContent=label,2000)}});
+$("mx").onclick=()=>closeModal({id:"cancel"});
+$("ov").onmousedown=e=>{if(e.target===$("ov"))closeModal({id:"cancel"})};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal({id:"cancel"})});
+
+/* ---------- 設定 ---------- */
+let saveT=null;
+const FIELDS={fmt:["fmt","v"],quality:["qual","v"],cookie_browser:["ck","v"],number:["num","c"],archive:["arch","c"],boost:["boost","c"],
+  frags:["frag","n"],subs:["subs","c"],embed:["embed","c"],thumb:["thumb","c"],meta:["meta","c"],sub_langs:["langs","v"],
+  open_file:["ofile","c"],open_folder:["ofolder","c"]};
+function collect(){
+  const o={};for(const k in FIELDS){const [id,t]=FIELDS[k],e=$(id);o[k]=t==="c"?e.checked:t==="n"?+e.value:e.value}
+  return o;
+}
+const payload=()=>({...collect(),url:$("url").value.trim(),cookie_file:cookieFile,outdir:$("dir").value});
+function persist(extra){
+  if(!ready||!api())return;
+  clearTimeout(saveT);
+  saveT=setTimeout(()=>api().save_settings({...collect(),outdir:$("dir").value,...extra}),250);
+}
+Object.values(FIELDS).forEach(([id])=>$(id).addEventListener(id==="langs"?"input":"change",()=>persist()));
+
+/* ---------- 進度條 ---------- */
+let fragDecided=false;
+function decideFrag(f){  // 每支影片的第一筆進度決定一次：分片下載維持分段，不是（-N 不會生效）就合併成一條
+  if(fragDecided||cells.length<2)return;
+  fragDecided=true;$("lanes").classList.toggle("merged",!f);
+}
+function buildLanes(){
+  const box=$("lanes");box.innerHTML="";cells=[];fragDecided=false;box.classList.remove("merged");
+  for(let i=0;i<frags();i++){
+    const l=document.createElement("div");l.className="lane";l.style.animationDelay=i*25+"ms";
+    l.innerHTML="<b></b>";box.append(l);cells.push(l.firstChild);
+  }
+}
+function paint(p){const n=cells.length;cells.forEach((c,i)=>c.style.width=Math.max(0,Math.min(100,(p/100*n-i)*100))+"%");$("pct").textContent=Math.round(p)+"%"}
+$("boost").addEventListener("change",()=>{$("frag").disabled=!$("boost").checked;if(!running)buildLanes()});
+$("frag").addEventListener("change",()=>{if(!running)buildLanes()});
+buildLanes();
+
+function busy(on){
+  running=on;
+  ["go","info","url","batch","ckpick","pick","dirclr","example","upd"].forEach(id=>$(id).disabled=on);
+  $("stop").disabled=!on;
+  if(on)$("state").textContent="下載中";
+  syncClear();
+}
+
+/* ---------- Python → 網頁 ---------- */
+window.__py=e=>{
+  if(e.type==="log")log(e.text,e.cls||"");
+  else if(e.type==="progress"){if(e.frag!==undefined)decideFrag(e.frag);if(e.pct!=null)paint(e.pct);$("speed").textContent=e.speed?(e.speed+(e.eta?"　剩餘 "+e.eta:"")):"—"}
+  else if(e.type==="state"){busy(e.busy);if(e.busy){buildLanes();paint(0)}}
+  else if(e.type==="video_start")fragDecided=false;  // 沿用目前樣式，等這支影片的第一筆進度再決定，避免每支影片都閃一下
+  else if(e.type==="win"){app.dataset.max=e.maximized?"1":"0";settle();applyScale()}
+  else if(e.type==="winhide"){  // 最小化：下移並縮小 5% 後淡出；instant 表示已經被最小化了，直接藏起來等還原
+    app.style.setProperty("--wt",(e.instant?0:e.seconds)+"s");app.classList.add("hiding");void app.offsetWidth}
+  else if(e.type==="winshow"){  // 從工作列還原：由下方、縮小 5% 淡入並上移、放大回原樣
+    app.style.setProperty("--wt",e.seconds+"s");app.classList.remove("hiding")}
+  else if(e.type==="info_done"){$("info").disabled=false;$("go").disabled=false}
+  else if(e.type==="done")onDone(e);
+  else if(e.type==="diag")onDiag(e);
+  else if(e.type==="update_done")onUpdateDone(e);
+};
+async function onDone(e){
+  $("speed").textContent="—";
+  if(e.ok){$("state").textContent="下載完成";paint(100);log("結束："+e.message,"ok");toast("下載完成");return}
+  if(e.cancelled){$("state").textContent="已取消";log("結束：已取消下載。");return}
+  $("state").textContent="錯誤";log("結束："+e.message);
+  let body=e.message;
+  if(e.failures&&e.failures.length>1){body+="\n\n"+e.failures.map(f=>`• ${f.url}\n  ${f.message}`).join("\n")+(e.more?`\n…另有 ${e.more} 筆失敗`:"")}
+  const ff=e.code==="ffmpeg";
+  const r=await askModal({title:ff?"缺少 FFmpeg":"下載失敗",body,buttons:ff?[{id:"ff",label:"開啟 FFmpeg 下載頁",primary:true}]:[]});
+  if(r.id==="ff"&&api())api().open_ffmpeg_page();
+}
+
+/* ---------- 版面縮放與最大化過渡 ---------- */
+function applyScale(){  // 視窗很大（含最大化）時整體放大，避免畫面太空；最多 1.3 倍
+  const s=Math.min(1.3,Math.max(1,Math.min(innerWidth/1440,(innerHeight-54)/990)));  // 990 = 內容在不縮放時需要的高度，避免放大後超出畫面
+  root.style.setProperty("--zoom",s.toFixed(3));
+}
+function settle(){const c=document.querySelector(".content");c.classList.remove("settle");void c.offsetWidth;c.classList.add("settle")}
+window.addEventListener("resize",applyScale);applyScale();
+
+/* ---------- 開始下載 ---------- */
+function localPrepare(p){  // 瀏覽器預覽模式用的簡化判斷
+  if(p.url.startsWith("file:")||!/[?&]list=/.test(p.url))return{ok:true,ask:null};
+  return{ok:true,ask:"single",kind:/\/playlist/.test(p.url)?"playlist":"mixed",default_name:"播放清單1"};
+}
+async function askPlaylist(prep){
+  if(prep.ask==="single"){
+    const mixed=prep.kind==="mixed";
+    const r=await askModal({title:"偵測到播放清單",
+      body:mixed?"這個網址同時包含「單一影片」與「所屬的播放清單」。\n請選擇要下載的內容：":"這是播放清單網址，會下載清單內的所有影片（數量可能很多）。\n要繼續嗎？",
+      input:`清單資料夾名稱（留空則用「${prep.default_name}」）`,
+      buttons:(mixed?[{id:"single",label:"只下載這支影片",primary:true}]:[]).concat([{id:"playlist",label:"下載整個播放清單",primary:!mixed}])});
+    return r.id==="cancel"?null:{mode:r.id,name:r.value};
+  }
+  const r=await askModal({title:"偵測到播放清單",
+    body:`批次清單中有 ${prep.total} 筆網址含有播放清單（其中 ${prep.pure} 筆是純播放清單）。\n\n每個播放清單會自動以「播放清單N」命名資料夾。\n請選擇處理方式：`,
+    buttons:[{id:"single",label:"只下載單一影片\n（純播放清單會略過）",primary:true},{id:"playlist",label:"下載整個播放清單"}]});
+  return r.id==="cancel"?null:{mode:r.id,name:""};
+}
+async function start(){
+  if(running||modalDone)return;
+  const p=payload();
+  if(!p.url){shake();log("請先貼上網址。");return}
+  const prep=api()?await api().prepare_download(p):localPrepare(p);
+  if(!prep.ok){log(prep.error);shake();return}
+  let decision=null;
+  if(prep.ask){decision=await askPlaylist(prep);if(!decision){log("已取消下載。");return}}
+  if(!api())return simulate(p);
+  const r=await api().start_download(p,decision);
+  if(!r.ok){log(r.error);shake()}
+}
+$("go").onclick=start;
+$("url").onkeydown=e=>{if(e.key==="Enter")start()};
+$("url").addEventListener("input",syncClear);
+$("urlclr").onclick=()=>{$("url").value="";syncClear();$("url").focus()};
+$("stop").onclick=()=>{$("stop").disabled=true;api()?api().cancel_download():stopSim()};
+$("info").onclick=async()=>{
+  const u=$("url").value.trim();
+  if(!u){shake();log("請先貼上網址。");return}
+  if(!api()){log("標題：範例影片　長度：04:32　可用畫質：1080P、720P、480P","hl");return}
+  $("info").disabled=true;$("go").disabled=true;log("正在讀取影片資訊…");
+  const r=await api().fetch_info(u,$("ck").value,cookieFile);
+  if(!r.ok){log(r.error);$("info").disabled=false;$("go").disabled=false}
+};
+
+/* ---------- 檔案與資料夾 ---------- */
+$("pick").onclick=async()=>{if(!api())return;const d=await api().choose_folder();if(d){$("dir").value=d;persist()}};
+$("dirclr").onclick=()=>{$("dir").value=defaultDir;persist()};
+$("ckpick").onclick=async()=>{if(!api())return;const f=await api().pick_cookie_file();if(f){cookieFile=f;$("ckf").value=f;$("ckf").title=f;syncClear()}};
+$("ckclr").onclick=()=>{cookieFile="";$("ckf").value="";syncClear()};
+async function applyBatch(r,from){
+  if(r.cancelled)return;
+  if(!r.ok){await askModal({title:r.missing?"範例不存在":"無法使用這份清單",body:r.error});return}
+  $("url").value="file:"+r.path;syncClear();
+  log(from==="example"?"已載入 example.txt":`匯入批次下載清單：${r.path}（${r.count} 筆網址）`);
+}
+$("batch").onclick=async()=>{if(!api())return log("預覽模式：無法開啟檔案對話框。");applyBatch(await api().pick_batch_file(),"batch")};
+$("example").onclick=async()=>{if(!api())return log("預覽模式：沒有範例檔。");applyBatch(await api().load_example(),"example")};
+
+/* ---------- 說明、診斷、歷史、檢查更新 ---------- */
+const PREVIEW_MSG="這是瀏覽器預覽模式，沒有連接 Python，這個功能無法使用。";
+$("help").onclick=async()=>{
+  if(!api())return askModal({title:"說明",body:PREVIEW_MSG});
+  const h=await api().get_help();
+  const credit=document.createElement("div");credit.className="credit";credit.textContent=h.credit;
+  askModal({title:"說明",body:h.text,node:credit,wide:true});
+};
+$("diag").onclick=()=>{
+  if(!api())return askModal({title:"系統診斷",body:PREVIEW_MSG});
+  $("diag").disabled=true;api().run_diagnostics();
+};
+$("hist").onclick=async()=>{
+  if(!api())return askModal({title:"下載歷史",body:PREVIEW_MSG});
+  const rows=await api().get_history();
+  if(!rows.length)return askModal({title:"下載歷史",body:"目前沒有下載紀錄。"});
+  const list=document.createElement("div");list.className="hist";
+  rows.forEach(r=>{
+    const d=document.createElement("div");d.className="hrow";
+    const tm=Object.assign(document.createElement("span"),{className:"tm",textContent:`[${r.time}]`});
+    const st=Object.assign(document.createElement("span"),{className:"st "+(r.ok?"ok":"no"),textContent:r.ok?"成功":"失敗"});
+    const mt=Object.assign(document.createElement("span"),{className:"mt2",textContent:`${r.fmt}　${r.quality}`});
+    const a=Object.assign(document.createElement("button"),{className:"lnk",type:"button",textContent:r.title,title:r.url});
+    a.onclick=()=>api().open_target(r.url);
+    d.append(tm,st,mt,a);list.append(d);
+  });
+  const r=await askModal({title:`下載歷史（最近 ${rows.length} 筆）`,node:list,wide:true,buttons:[{id:"clear",label:"清除歷史",danger:true}]});
+  if(r.id==="clear"){
+    const c=await askModal({title:"清除歷史",body:"確定要清除所有下載紀錄嗎？",buttons:[{id:"yes",label:"確定清除",danger:true}]});
+    if(c.id==="yes"){await api().clear_history();toast("已清除下載歷史")}
+  }
+};
+$("upd").onclick=async()=>{
+  if(!api())return askModal({title:"檢查更新",body:PREVIEW_MSG});
+  const r=await api().check_update();
+  if(!r.ok){log(r.error);return}
+  $("upd").disabled=true;log("正在檢查更新（yt-dlp、Python、FFmpeg），請稍候…");
+};
+async function onUpdateDone(e){
+  $("upd").disabled=running;
+  log(e.text);
+  const buttons=[];
+  if(e.python_url)buttons.push({id:"py",label:"開啟 Python 下載頁"});
+  if(e.command)buttons.push(copyButton(e.command.label,e.command.text));
+  if(e.ffmpeg_url)buttons.push({id:"ff",label:"開啟 FFmpeg 下載頁"});
+  const r=await askModal({title:"檢查更新",body:e.text,buttons,
+    code:e.command?e.command.text:"",note:e.command?`${e.command.title}（按「複製」會放進剪貼簿）。${e.command.note}`:""});
+  if(r.id==="py")api().open_python_page();else if(r.id==="ff")api().open_ffmpeg_page();
+}
+async function onDiag(e){
+  $("diag").disabled=false;
+  askModal({title:"系統診斷",code:e.text,buttons:[copyButton("複製診斷資訊",e.text)]});
+}
+
+/* ---------- 瀏覽器預覽模式：模擬下載 ---------- */
+function simulate(p){
+  buildLanes();busy(true);log(`yt-dlp ${p.boost?"-N "+p.frags+" ":""}${p.url}`,"hl");
+  const gain=Math.pow(frags(),.6);let v=0,tick=0;
+  timer=setInterval(()=>{tick++;if(tick===1)decideFrag(/m3u8|\.mpd/.test(p.url));  // 預覽：網址含 m3u8／mpd 視為分片
+    v=Math.min(100,v+(.5+Math.random())*gain/(cells.length>1?1.2:1));paint(v);
+    const mb=(3.8+Math.random()*1.2)*gain;$("speed").textContent=mb.toFixed(1)+" MiB/s";
+    if(tick%12===0)log(`[download] ${v.toFixed(1)}% of 84.2MiB at ${mb.toFixed(1)}MiB/s`);
+    if(v>=100){clearInterval(timer);busy(false);onDone({ok:true,message:"下載完成"})}},150);
+}
+function stopSim(){clearInterval(timer);busy(false);paint(0);onDone({cancelled:true})}
+
+/* ---------- 啟動 ---------- */
+async function init(){
+  if(ready&&!api())return;
+  if(!api()){$("note").hidden=false;ready=true;syncClear();return}
+  $("note").hidden=true;
+  const s=await api().get_state();
+  $("ver").textContent="v"+s.version;defaultDir=s.default_dir;$("dir").value=s.outdir;
+  for(const k in FIELDS){const [id,t]=FIELDS[k],e=$(id);
+    if(t==="c")e.checked=!!s[k];else if(e.tagName==="SELECT")setSel(id,String(s[k]));else e.value=s[k]}
+  $("frag").disabled=!s.boost;buildLanes();setMode(s.appearance,false);ready=true;syncClear();
+}
+window.addEventListener("pywebviewready",init);
+setTimeout(()=>{if(!ready)init()},600);
+</script>
+</body>
+</html>

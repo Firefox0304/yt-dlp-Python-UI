@@ -37,7 +37,8 @@ DEFAULT_FRAGMENTS = 4
 NO_COOKIE_VALUES = ("", "無", "none", "None", "不使用")
 
 PROGRESS_TEMPLATE = ("Downloading:%(progress._percent_str)s | "
-                     "%(progress._speed_str)s | ETA %(progress._eta_str)s")
+                     "%(progress._speed_str)s | ETA %(progress._eta_str)s | "
+                     "FRAG %(progress.fragment_count)s")  # 分片下載才有數字，其他是 NA
 
 _PROGRESS_RE = re.compile(r"^(?:Downloading:|\[download\])\s*(\d+(?:[.,]\d+)?)\s*%")
 
