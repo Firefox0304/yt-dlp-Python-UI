@@ -33,14 +33,14 @@ pip install -r requirements.txt
 - 右側「快速操作」：檢查更新（yt-dlp、Python、FFmpeg）、說明、系統診斷
 - 淺色／系統／深色主題；自訂標題列與無邊框視窗
 
-## 資料夾結構概括
-|                           路徑 --說明                               |
-| ------------------------------------------------------------------ |
-| `yt-dlp-Python-UI.pyw`    --啟動器                                  |          
-| `modules/`    --Python 後端（`webui.py` 為網頁與 Python 之間的橋接）  | 
-| `web/index.html`  --介面（CSS 與 JS 內嵌）                           |   
-| `fonts/`  --隨附字型 Noto Sans TC（OFL 授權）                        |
-| `config/`、`logs/`、`Download/`、`example/`   --執行時自動產生       |                               
+## 資料夾結構
+| 路徑 | 說明 |
+| --- | --- |
+| `yt-dlp-Python-UI.pyw` | 啟動器 |
+| `modules/` | Python 後端（`webui.py` 為網頁與 Python 之間的橋接） |
+| `web/index.html` | 介面（CSS 與 JS 內嵌） |
+| `fonts/` | 隨附字型 Noto Sans TC（OFL 授權） |
+| `config/`、`logs/`、`Download/`、`example/` | 執行時自動產生 |                              
 
 ## 更新紀錄
 見 [CHANGELOG.md](CHANGELOG.md)。
