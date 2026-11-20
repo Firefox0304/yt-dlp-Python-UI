@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ## 主要功能
 - 單一網址或批次清單（網址欄填 `file:路徑`），可載入範例清單
-- 格式與畫質選擇、瀏覽器 Cookie、Cookies.txt 匯入
+- 格式與畫質選擇、瀏覽器 Cookie、Cookies.txt 匯入，建議使用Chrome的[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/cclelndahbckbenkjhflpdbgdldlbecc?utm_source=item-share-cb)擴充功能
 - 播放清單偵測與詢問（可自訂資料夾名稱、自動編號）
 - 進階選項：字幕、嵌入字幕、縮圖、影片資訊
 - 下載加速（`-N` 切片數 4／8／16；只對 HLS／m3u8、DASH 清單等分片式串流有效，一般 YouTube 影片不會變快）
