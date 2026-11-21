@@ -40,14 +40,9 @@ pip install -r requirements.txt
 | `yt-dlp-Python-UI.pyw` | 啟動器 |
 | `modules/` | Python 後端（`webui.py` 為網頁與 Python 之間的橋接） |
 | `web/index.html` | 介面（CSS 與 JS 內嵌） |
-<<<<<<< HEAD
 | `locales/` | 介面文字（每個語言一個 JSON 檔） |
 | `fonts/` | 隨附字型 Noto Sans TC（OFL 授權） |
 | `config/`、`logs/`、`Download/`、`example/` | 執行時自動產生 |
-=======
-| `fonts/` | 隨附字型 Noto Sans TC（OFL 授權） |
-| `config/`、`logs/`、`Download/`、`example/` | 執行時自動產生 |                              
->>>>>>> 6fa99834a368c9c7746fe91c06e6f1cc35211ebe
 
 ## 更新紀錄
 見 [CHANGELOG.md](CHANGELOG.md)。
