@@ -3,7 +3,7 @@
 以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。v6.0 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
 
 > **v6.0 只支援 Windows（建議 Windows 11）。**
-> 需要跨平台（Windows／Linux／macOS）的 Tk 版請使用 v5.6。
+> 需要跨平台（Linux／macOS）請使用 [v5.6](https://github.com/Firefox0304/yt-dlp-Python-UI/releases/tag/UI-v5.6) 的 Tk 版 。
 
 作者：Firefox_0304　協助 Bot：ChatGPT、Manus、Claude
 
@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ## 主要功能
 - 單一網址或批次清單（網址欄填 `file:路徑`），可載入範例清單
-- 格式與畫質選擇、瀏覽器 Cookie、Cookies.txt 匯入
+- 格式與畫質選擇、瀏覽器 Cookie、Cookies.txt 匯入，建議使用Chrome的[Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/cclelndahbckbenkjhflpdbgdldlbecc?utm_source=item-share-cb)擴充功能
 - 播放清單偵測與詢問（可自訂資料夾名稱、自動編號）
 - 進階選項：字幕、嵌入字幕、縮圖、影片資訊
 - 下載加速（`-N` 切片數 4／8／16；只對 HLS／m3u8、DASH 清單等分片式串流有效，一般 YouTube 影片不會變快）
@@ -40,9 +40,14 @@ pip install -r requirements.txt
 | `yt-dlp-Python-UI.pyw` | 啟動器 |
 | `modules/` | Python 後端（`webui.py` 為網頁與 Python 之間的橋接） |
 | `web/index.html` | 介面（CSS 與 JS 內嵌） |
+<<<<<<< HEAD
 | `locales/` | 介面文字（每個語言一個 JSON 檔） |
 | `fonts/` | 隨附字型 Noto Sans TC（OFL 授權） |
 | `config/`、`logs/`、`Download/`、`example/` | 執行時自動產生 |
+=======
+| `fonts/` | 隨附字型 Noto Sans TC（OFL 授權） |
+| `config/`、`logs/`、`Download/`、`example/` | 執行時自動產生 |                              
+>>>>>>> 6fa99834a368c9c7746fe91c06e6f1cc35211ebe
 
 ## 更新紀錄
 見 [CHANGELOG.md](CHANGELOG.md)。
