@@ -27,16 +27,26 @@ JS_RUNTIME_NAMES = ("deno", "node", "bun", "qjs")
 def resolve_engine(base_dir):
     local = os.path.join(base_dir, "yt-dlp.exe")
     if os.path.isfile(local):
-        return Engine("local_exe", [local], f"本機 yt-dlp.exe（{local}）")
+        return Engine("local_exe", [local], f"local yt-dlp.exe ({local})")
 
     python = utils.get_console_python()
     if python and importlib.util.find_spec("yt_dlp") is not None:
-        return Engine("module", [python, "-m", "yt_dlp"], f"Python 模組（{python} -m yt_dlp）")
+        return Engine("module", [python, "-m", "yt_dlp"], f"Python module ({python} -m yt_dlp)")
 
     path_exe = shutil.which("yt-dlp")
     if path_exe:
-        return Engine("path_exe", [path_exe], f"PATH 中的 yt-dlp（{path_exe}）")
+        return Engine("path_exe", [path_exe], f"yt-dlp on PATH ({path_exe})")
     return None
+
+
+def describe(eng):
+    """給使用者看的來源說明（依介面語言）；eng.label 是固定的英文，只給日誌用。"""
+    from modules.i18n import t
+    if eng.kind == "local_exe":
+        return t("engine.local", path=eng.command[0])
+    if eng.kind == "module":
+        return t("engine.module", python=eng.command[0])
+    return t("engine.path", path=eng.command[0])
 
 
 def get_version(eng, timeout=30):

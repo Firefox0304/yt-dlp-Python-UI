@@ -1,9 +1,9 @@
-# yt-dlp-Python-UI v6.0（網頁介面）
+# yt-dlp-Python-UI v6.1（網頁介面版）
 
 以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。v6.0 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
 
 > **v6.0 只支援 Windows（建議 Windows 11）。**
-> 需要跨平台（Linux／macOS）請使用 v5.6 的 Tk 版 。
+> 需要跨平台（Windows／Linux／macOS）的 Tk 版請使用 v5.6。
 
 作者：Firefox_0304　協助 Bot：ChatGPT、Manus、Claude
 
@@ -32,15 +32,17 @@ pip install -r requirements.txt
 - 讀取影片資訊、取消下載、下載歷史（最近 50 筆）
 - 右側「快速操作」：檢查更新（yt-dlp、Python、FFmpeg）、說明、系統診斷
 - 淺色／系統／深色主題；自訂標題列與無邊框視窗
+- 介面語言：繁體中文、简体中文、English、日本語（標題列右上方可切換；預設「自動」依 Windows 顯示語言決定）
 
-## 資料夾結構概括
-|                           路徑 --說明                               |
-| ------------------------------------------------------------------ |
-| `yt-dlp-Python-UI.pyw`    --啟動器                                  |          
-| `modules/`    --Python 後端（`webui.py` 為網頁與 Python 之間的橋接）  | 
-| `web/index.html`  --介面（CSS 與 JS 內嵌）                           |   
-| `fonts/`  --隨附字型 Noto Sans TC（OFL 授權）                        |
-| `config/`、`logs/`、`Download/`、`example/`   --執行時自動產生       |                               
+## 資料夾結構
+| 路徑 | 說明 |
+| --- | --- |
+| `yt-dlp-Python-UI.pyw` | 啟動器 |
+| `modules/` | Python 後端（`webui.py` 為網頁與 Python 之間的橋接） |
+| `web/index.html` | 介面（CSS 與 JS 內嵌） |
+| `locales/` | 介面文字（每個語言一個 JSON 檔） |
+| `fonts/` | 隨附字型 Noto Sans TC（OFL 授權） |
+| `config/`、`logs/`、`Download/`、`example/` | 執行時自動產生 |
 
 ## 更新紀錄
 見 [CHANGELOG.md](CHANGELOG.md)。

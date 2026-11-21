@@ -16,8 +16,9 @@ import threading
 import time
 import webbrowser
 
-from modules import config_manager, downloader, history, logger, updater, utils
+from modules import config_manager, downloader, history, i18n, logger, updater, utils
 from modules import engine as engine_mod
+from modules.i18n import t
 from modules.version import APP_NAME, APP_VERSION
 
 LOG = logger.get()
@@ -27,80 +28,57 @@ MINIMIZE_ANIMATION_SECONDS = 0.15  # 最小化淡出／從工作列還原淡入�
 # yt-dlp 在每支影片開始下載時會輸出的訊息：播放清單的「第 N 支」，以及每支影片的「Downloading N format(s)」
 _VIDEO_START_RE = re.compile(r"^\[(?:download\] Downloading item \d+ of \d+|info\] .+: Downloading \d+ format\(s\))")
 HISTORY_VIEW_COUNT = 50
-CREDIT = "作者：Firefox_0304　協助Bot：ChatGPT　Manus　Claude"
-
-HELP_TEXT = (
-    "【基本使用】\n"
-    "在『網址』欄位貼上網址（Enter 可直接開始），或按『匯入批次下載』選取 .txt 清單\n"
-    "（每行一個網址，# 開頭為註解，重複網址會自動略過，並依序逐筆下載）。\n\n"
-    "【取消與資訊】\n"
-    "下載中可按『取消下載』；『讀取影片資訊』可先查看標題與實際可用的畫質。\n\n"
-    "【畫質】\n"
-    "選 720P 代表「最高到 720P」；若影片沒有這麼低的畫質，會改取最低畫質。\n\n"
-    "【播放清單】\n"
-    "貼上含播放清單的 YouTube 網址時，開始下載前會詢問要下載單一影片還是整個清單。\n"
-    "選擇整個清單會建立資料夾，可自訂名稱；留空則自動命名為「播放清單N」。\n"
-    "勾選右側『播放清單自動編號』會在檔名前加上 01、02… 的順序編號（只對整個清單有效）。\n\n"
-    "【Cookie】\n"
-    "需要登入時，請用瀏覽器擴充功能匯出 cookies.txt 後按『匯入 Cookies.txt』（優先使用）；\n"
-    "出於安全考量，Cookies.txt 的路徑不會被記住，每次啟動都要重新選擇。\n"
-    "也可在右側選擇瀏覽器直接讀取 Cookie（Chrome / Edge 新版可能無法解密）。\n\n"
-    "【進階】\n"
-    "『記錄已下載』會用 config/archive.txt 記住下載過的影片，之後自動略過重複。\n\n"
-    "【下載加速】\n"
-    "勾選『啟用下載加速』後，會以 yt-dlp 的 -N 同時下載多個切片（可選 4／8／16）。\n"
-    "只對分片式串流（如 m3u8／HLS、DASH 清單）有效；一般單一檔案（包含多數 YouTube 影片）不會變快，\n"
-    "遇到這類影片時進度條會自動合併成一條。切片數太高可能被網站限速或回報 HTTP 429。"
-)
-
+# 升級／安裝命令旁的說明（標題, 提醒）所用的文字代號
 _COMMAND_NOTES = {
-    "python": ("升級命令", "請先關閉本程式，再到「命令提示字元」或 PowerShell 貼上執行。"),
-    "ffmpeg": ("安裝命令", "請在終端機貼上執行。裝好後回到本程式重新操作即可，不需要關閉本程式。"),
+    "python": ("cmd.python.title", "cmd.python.note"),
+    "ffmpeg": ("cmd.ffmpeg.title", "cmd.ffmpeg.note"),
 }
 
 
 def summarize_update(results):
     """把檢查更新的結果整理成 (顯示文字, 是否有檢查失敗, 是否建議前往 Python 下載頁)。"""
     lines, problem, suggest_python = [], False, False
+    unknown = t("update.unknown")
 
     y = results.get("ytdlp", {})
     if y.get("status") == "up_to_date":
-        lines.append(f"yt-dlp：已為最新版本（{y['current']}）")
+        lines.append(t("update.ytdlp.latest", current=y["current"]))
     elif y.get("status") == "updated":
-        lines.append(f"yt-dlp：已更新 {y['current']} → {y['latest']}")
+        lines.append(t("update.ytdlp.updated", current=y["current"], latest=y["latest"]))
     else:
         problem = True
-        lines.append(f"yt-dlp：檢查失敗：{y.get('message', '未知錯誤')}")
+        lines.append(t("update.fail", name="yt-dlp", message=y.get("message", unknown)))
 
     py = results.get("python", {})
     if py.get("status") == "ok":
         notes = []
         if py["patch_update"]:
-            notes.append(f"同系列有新的修補版 {py['series_latest']}（建議更新）")
+            notes.append(t("update.python.patch", version=py["series_latest"]))
         if py["new_series"]:
-            notes.append(f"已有新的主要版本 {py['overall']}（不一定要升級，請先確認套件相容）")
+            notes.append(t("update.python.major", version=py["overall"]))
         if py["eol"]:
-            notes.append(f"Python {py['series']} 已結束支援，建議改用較新的版本")
+            notes.append(t("update.python.eol", series=py["series"]))
         if notes:
             suggest_python = True
-            lines.append(f"Python：目前 {py['current']}\n  • " + "\n  • ".join(notes))
+            lines.append(t("update.python.current", current=py["current"]) + "\n  • " + "\n  • ".join(notes))
         else:
-            lines.append(f"Python：目前 {py['current']}，已為最新版本")
+            lines.append(t("update.python.latest", current=py["current"]))
     else:
         problem = True
-        lines.append(f"Python：檢查失敗：{py.get('message', '未知錯誤')}")
+        lines.append(t("update.fail", name="Python", message=py.get("message", unknown)))
 
     ff = results.get("ffmpeg")  # 只顯示版本與位置，不提供更新
     if ff is not None:
         if ff.get("status") == "ok":
-            where = "程式資料夾" if ff.get("source") == "program" else "系統 PATH"
-            lines.append(f"FFmpeg：{ff.get('version') or '無法讀取版本'}\n  （{where}：{ff.get('path', '')}）")
+            where = t("update.ffmpeg.where.program") if ff.get("source") == "program" else t("update.ffmpeg.where.path")
+            lines.append(t("update.ffmpeg.ok", version=ff.get("version") or t("update.ffmpeg.noversion"),
+                           where=where, path=ff.get("path", "")))
         elif ff.get("status") == "missing":
             problem = True
-            lines.append("FFmpeg：找不到，請將 ffmpeg.exe 放入程式資料夾，或將 FFmpeg 加入系統 PATH")
+            lines.append(t("update.ffmpeg.missing"))
         else:
             problem = True
-            lines.append(f"FFmpeg：檢查失敗：{ff.get('message', '未知錯誤')}")
+            lines.append(t("update.fail", name="FFmpeg", message=ff.get("message", unknown)))
     return "\n\n".join(lines), problem, suggest_python
 
 
@@ -577,6 +555,9 @@ class Api:
         state = {
             "version": APP_VERSION,
             "appearance": appearance if appearance in THEMES else "System",
+            "language": i18n.normalize_setting(cfg.get("language")),
+            "lang": i18n.current(),
+            "strings": i18n.bundle(),
             "outdir": self._resolve_dir(cfg.get("download_path")),
             "default_dir": os.path.join(self._base_dir, "Download"),
         }
@@ -584,6 +565,17 @@ class Api:
         for field, (key, convert) in _SETTING_FIELDS.items():
             state[field] = convert(cfg.get(key, defaults.get(key)))
         return state
+
+    def set_language(self, setting):
+        """切換介面語言：setting 是 'auto' 或語言代號。存進設定檔、讓 Python 端訊息改用新語言，並回傳整包文字給網頁。"""
+        setting = i18n.normalize_setting(setting)
+        self._cfg["language"] = setting
+        i18n.set_language(i18n.resolve(setting))
+        try:
+            config_manager.save(self._config_path, self._cfg)
+        except OSError as exc:
+            LOG.warning("Failed saving config: %s", exc)
+        return {"lang": i18n.current(), "strings": i18n.bundle()}
 
     def save_settings(self, data):
         for key, value in (data or {}).items():
@@ -610,14 +602,14 @@ class Api:
     def pick_cookie_file(self):
         import webview
         result = self._window.create_file_dialog(
-            _dialog_type(webview, "OPEN"), file_types=("Cookie 檔 (*.txt)", "所有檔案 (*.*)"))
+            _dialog_type(webview, "OPEN"), file_types=(t("dialog.cookie"), t("dialog.all")))
         return result[0] if result else None
 
     def pick_batch_file(self):
         """選批次清單並先讀一次，確認可用；網址欄位會填成 file:<路徑>，開始下載時才真正展開。"""
         import webview
         result = self._window.create_file_dialog(
-            _dialog_type(webview, "OPEN"), file_types=("文字檔 (*.txt)", "所有檔案 (*.*)"))
+            _dialog_type(webview, "OPEN"), file_types=(t("dialog.text"), t("dialog.all")))
         if not result:
             return {"ok": False, "cancelled": True}
         return self._check_batch(result[0])
@@ -626,8 +618,7 @@ class Api:
         path = os.path.join(self._base_dir, "example", "example.txt")
         if not os.path.exists(path):
             return {"ok": False, "missing": True,
-                    "error": "找不到 example/example.txt。\n\n請把 config/settings.json 的 examplegeneration "
-                             "改成 false（或刪除那一行），重新啟動程式就會再產生。"}
+                    "error": t("err.example_missing")}
         return self._check_batch(path)
 
     @staticmethod
@@ -635,9 +626,9 @@ class Api:
         try:
             urls = downloader.read_batch_urls(path)
         except OSError as exc:
-            return {"ok": False, "error": f"無法讀取清單：{exc}"}
+            return {"ok": False, "error": t("err.list_read", error=exc)}
         if not urls:
-            return {"ok": False, "error": "批次清單中沒有可用的網址（空行與 # 註解會被忽略）。"}
+            return {"ok": False, "error": t("err.list_empty")}
         return {"ok": True, "path": path, "count": len(urls)}
 
     # ----------------------------------------------------------- 下載
@@ -648,11 +639,11 @@ class Api:
         try:
             urls = downloader.expand_target(target)
         except OSError as exc:
-            return {"ok": False, "error": f"無法讀取清單：{exc}"}
+            return {"ok": False, "error": t("err.list_read", error=exc)}
         if not target:
-            return {"ok": False, "error": "請先貼上網址。"}
+            return {"ok": False, "error": t("err.no_url")}
         if not urls:
-            return {"ok": False, "error": "批次清單中沒有可用的網址（空行與 # 註解會被忽略）。"}
+            return {"ok": False, "error": t("err.list_empty")}
         kinds = [downloader.classify_playlist_url(url) for url in urls]
         if not target.startswith("file:"):
             if kinds[0] == "none":
@@ -689,18 +680,18 @@ class Api:
     def start_download(self, payload, decision=None):
         with self._lock:
             if self._controller is not None:
-                return {"ok": False, "error": "已經有下載在進行中。"}
+                return {"ok": False, "error": t("err.busy")}
             outdir = self._resolve_dir(payload.get("outdir"))
             target = (payload.get("url") or "").strip()
             try:
                 urls = downloader.expand_target(target)
             except OSError as exc:
-                return {"ok": False, "error": f"無法讀取批次清單：{exc}"}
+                return {"ok": False, "error": t("err.batch_read", error=exc)}
             if not urls:
-                return {"ok": False, "error": "請先貼上網址。"}
+                return {"ok": False, "error": t("err.no_url")}
             items = self._plan_items(target, urls, outdir, decision)
             if not items:
-                return {"ok": False, "error": "清單中只有播放清單網址，而且已選擇略過，所以沒有要下載的項目。"}
+                return {"ok": False, "error": t("err.only_playlists_skipped")}
             cfg = self._cfg
             opts = downloader.DownloadOptions(
                 fmt=(payload.get("fmt") or "mp4").strip(),
@@ -731,14 +722,14 @@ class Api:
                 item_started=self._on_item_started, item_finished=self._on_item_finished,
                 finished_callback=self._on_finished)
         self._emit(type="state", busy=True)
-        self._emit(type="log", text=f"開始下載 -> {target}　格式：{opts.fmt}　畫質：{opts.quality}　輸出：{outdir}",
+        self._emit(type="log", text=t("log.start", target=target, fmt=opts.fmt, quality=opts.quality, outdir=outdir),
                    cls="hl")
         return {"ok": True}
 
     def cancel_download(self):
         controller = self._controller
         if controller is not None:
-            self._emit(type="log", text="正在取消下載…")
+            self._emit(type="log", text=t("log.cancelling"))
             controller.cancel()
         return True
 
@@ -763,15 +754,16 @@ class Api:
     def _on_item_started(self, index, total, item):
         self._emit(type="video_start")  # 備援：有些網站不會輸出上面那種訊息
         if total > 1:
-            self._emit(type="log", text=f"[{index}/{total}] 開始：{item.url}")
+            self._emit(type="log", text=t("log.item_start", index=index, total=total, url=item.url))
         if item.playlist:
-            self._emit(type="log", text=f"下載整個播放清單 → 資料夾：{item.folder}")
+            self._emit(type="log", text=t("log.item_playlist", folder=item.folder))
 
     def _on_item_finished(self, index, total, item, success, message, files):
         if total > 1:
-            self._emit(type="log", text=f"[{index}/{total}] {'成功' if success else '失敗'}：{message}",
+            status = t("hist.ok") if success else t("hist.fail")
+            self._emit(type="log", text=t("log.item_result", index=index, total=total, status=status, message=message),
                        cls="ok" if success else "")
-        if message == "已取消":
+        if message == t("state.cancelled"):
             return  # 使用者主動取消的項目不計入歷史
         job = self._job
         try:
@@ -818,9 +810,9 @@ class Api:
     def fetch_info(self, url, cookie_browser="無", cookie_file=""):
         url = (url or "").strip()
         if not url:
-            return {"ok": False, "error": "請先貼上網址。"}
+            return {"ok": False, "error": t("err.no_url")}
         if url.startswith("file:"):
-            return {"ok": False, "error": "批次清單無法讀取影片資訊，請改貼單一網址。"}
+            return {"ok": False, "error": t("err.batch_info")}
 
         def work():
             try:
@@ -831,15 +823,15 @@ class Api:
                     minutes, seconds = divmod(int(info["duration"]), 60)
                     hours, minutes = divmod(minutes, 60)
                     length = f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes:02d}:{seconds:02d}"
-                lines = [f"標題：{info['title']}"]
+                lines = [t("info.title", title=info["title"])]
                 if info["uploader"]:
-                    lines.append(f"上傳者：{info['uploader']}")
+                    lines.append(t("info.uploader", uploader=info["uploader"]))
                 if info["is_playlist"]:
-                    lines.append(f"播放清單，共 {info['entry_count']} 部")
+                    lines.append(t("info.playlist", count=info["entry_count"]))
                 if length:
-                    lines.append(f"長度：{length}")
+                    lines.append(t("info.length", length=length))
                 if info["heights"]:
-                    lines.append("可用畫質：" + "、".join(f"{h}P" for h in info["heights"]))
+                    lines.append(t("info.heights", list=t("info.sep").join(f"{h}P" for h in info["heights"])))
                 for line in lines:
                     self._emit(type="log", text=line, cls="hl")
             except RuntimeError as exc:
@@ -880,7 +872,7 @@ class Api:
         return False
 
     def get_help(self):
-        return {"text": HELP_TEXT, "credit": CREDIT}
+        return {"text": t("help.text"), "credit": t("credit")}
 
     def run_diagnostics(self):
         def work():
@@ -888,7 +880,7 @@ class Api:
                 self._emit(type="diag", text=self._diagnostics_text())
             except Exception as exc:  # noqa: BLE001 — 診斷本身出錯也要讓按鈕恢復
                 LOG.exception("Diagnostics failed")
-                self._emit(type="diag", text=f"診斷失敗：{exc}")
+                self._emit(type="diag", text=t("diag.fail", error=exc))
 
         threading.Thread(target=work, daemon=True).start()
         return True
@@ -900,22 +892,21 @@ class Api:
         try:
             webview_version = importlib.metadata.version("pywebview")
         except importlib.metadata.PackageNotFoundError:
-            webview_version = "未知"
-        return (
-            f"系統平台：{utils.describe_platform()}\n"
-            f"Python：{sys.version.split()[0]}\n"
-            f"yt-dlp 版本：{version or '未安裝或無法取得'}\n"
-            f"yt-dlp 來源：{eng.label if eng else '找不到'}\n"
-            f"FFmpeg：{downloader.find_ffmpeg(self._base_dir) or '找不到'}\n"
-            f"介面：pywebview {webview_version}\n"
-            f"JS 執行環境：{', '.join(js) if js else '未偵測到（部分 YouTube 影片可能需要，例如 Deno）'}\n"
-            f"輸出資料夾：{self._resolve_dir(self._cfg.get('download_path'))}\n"
-            f"設定檔：{self._config_path}"
-        )
+            webview_version = t("diag.unknown")
+        return t("diag.report",
+                 platform=utils.describe_platform(),
+                 python=sys.version.split()[0],
+                 ytdlp_version=version or t("diag.not_installed"),
+                 ytdlp_source=engine_mod.describe(eng) if eng else t("diag.not_found"),
+                 ffmpeg=downloader.find_ffmpeg(self._base_dir) or t("diag.not_found"),
+                 webview=webview_version,
+                 js=", ".join(js) if js else t("diag.js_none"),
+                 outdir=self._resolve_dir(self._cfg.get("download_path")),
+                 config=self._config_path)
 
     def check_update(self):
         if self._controller is not None:
-            return {"ok": False, "error": "下載進行中，請等下載結束再檢查更新。"}
+            return {"ok": False, "error": t("err.update_busy")}
 
         def work():
             try:
@@ -932,9 +923,11 @@ class Api:
             if suggest_python:
                 winget = (results.get("python") or {}).get("winget_command")  # 只有 Windows 且 winget 可用才有
                 if winget:
-                    command = {"label": winget[0], "text": winget[1], "kind": "python"}
+                    label = "update.copy_upgrade" if "upgrade" in winget[1] else "update.copy_install"
+                    command = {"label": t(label), "text": winget[1], "kind": "python"}
             if command:
-                command["title"], command["note"] = _COMMAND_NOTES[command["kind"]]
+                title_key, note_key = _COMMAND_NOTES[command["kind"]]
+                command["title"], command["note"] = t(title_key), t(note_key)
             self._emit(type="update_done", text=text, problem=problem,
                        python_url=updater.PYTHON_DOWNLOADS_URL if suggest_python else "",
                        ffmpeg_url=downloader.FFMPEG_DOWNLOAD_URL if ffmpeg_missing else "",
@@ -977,6 +970,8 @@ def main(base_dir):
     config_manager.ensure_example(base_dir, config_path, cfg)
     _ensure_ytdlp(base_dir)
 
+    i18n.init(base_dir)
+    i18n.set_language(i18n.resolve(cfg.get("language")))
     api = Api(base_dir, cfg, config_path)
     window = webview.create_window(
         f"{APP_NAME} v{APP_VERSION}", os.path.join(base_dir, "web", "index.html"),

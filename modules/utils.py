@@ -10,6 +10,8 @@ import sys
 import tempfile
 from urllib.parse import urlparse
 
+from modules.i18n import t
+
 IMG_EXTS = (".png", ".jpg", ".jpeg", ".bmp", ".gif")
 
 _BILIBILI_HOSTS = ("bilibili.com", "bilibili.tv", "b23.tv", "biliintl.com")
@@ -168,7 +170,7 @@ def describe_platform(system=None, release=None, version=None, os_release=None, 
 
     if system == "Windows":
         name = _windows_name(release, version)
-        return f"{name}（版本號 {version}）" if version else name
+        return t("util.platform_version", name=name, version=version) if version else name
 
     if system == "Darwin":
         mac = mac_version if mac_version is not None else platform.mac_ver()[0]
@@ -184,7 +186,7 @@ def describe_platform(system=None, release=None, version=None, os_release=None, 
         ver = info.get("VERSION_ID") or ""
         return f"{name} {ver}".strip()
 
-    return f"{system or '未知系統'} {release}".strip()
+    return f"{system or t('util.unknown_system')} {release}".strip()
 
 
 def winget_available(timeout=10):

@@ -12,6 +12,7 @@ DEFAULT_CONFIG = {
     "last_quality": "預設",
     "cookie_browser": "無",
     "appearance": "System",
+    "language": "auto",
     "font_registration": "private",
     "open_file_after_download": False,
     "open_folder_after_download": True,

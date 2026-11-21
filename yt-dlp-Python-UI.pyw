@@ -23,6 +23,25 @@ def show_error(text):
             sys.stderr.write(text + "\n")
 
 
+def tr(key, fallback):
+    """啟動器的少數訊息也依介面語言顯示：設定檔的 language，沒有就看 Windows 顯示語言；任何一步失敗就用中文備用文字。"""
+    try:
+        import json
+        from modules import i18n
+        i18n.init(BASE_DIR)
+        setting = "auto"
+        try:
+            with open(os.path.join(BASE_DIR, "config", "settings.json"), "r", encoding="utf-8") as f:
+                setting = json.load(f).get("language", "auto")
+        except (OSError, ValueError, AttributeError):
+            pass
+        i18n.set_language(i18n.resolve(setting))
+        text = i18n.t(key)
+        return fallback if text == key else text
+    except Exception:  # noqa: BLE001
+        return fallback
+
+
 def ensure_webview():
     try:
         import webview  # noqa: F401
@@ -46,11 +65,11 @@ def ensure_webview():
 
 if __name__ == "__main__":
     if not ensure_webview():
-        show_error("找不到 pywebview，自動安裝也失敗。\n請在命令提示字元執行：\n  pip install pywebview")
+        show_error(tr("launcher.no_webview", "找不到 pywebview，自動安裝也失敗。\n請在命令提示字元執行：\n  pip install pywebview"))
         sys.exit(1)
     try:
         from modules import webui
         webui.main(BASE_DIR)
     except Exception:  # noqa: BLE001
-        show_error("程式啟動失敗：\n\n" + traceback.format_exc()[-1500:])
+        show_error(tr("launcher.start_failed", "程式啟動失敗：") + "\n\n" + traceback.format_exc()[-1500:])
         sys.exit(1)

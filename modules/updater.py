@@ -14,6 +14,7 @@ import urllib.request
 from modules import downloader
 from modules import engine as engine_mod
 from modules import utils
+from modules.i18n import t
 
 PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
 
@@ -48,28 +49,28 @@ def build_update_command(eng):
 def check_and_update(eng, log=lambda text: None):
     """檢查並更新。回傳 dict：status = up_to_date | updated，失敗時丟出 RuntimeError。"""
     if eng is None:
-        raise RuntimeError("找不到 yt-dlp，請先安裝（pip install yt-dlp）或放入 yt-dlp.exe。")
+        raise RuntimeError(t("upd.msg.no_engine"))
     current = engine_mod.get_version(eng)
     if not current:
-        raise RuntimeError("無法取得目前 yt-dlp 版本")
-    log(f"目前 yt-dlp 版本：{current}")
+        raise RuntimeError(t("upd.msg.no_version"))
+    log(t("upd.log.current", current=current))
 
     try:
         latest = fetch_latest_version()
     except Exception as exc:
-        raise RuntimeError(f"無法查詢最新版本：{exc}") from exc
+        raise RuntimeError(t("upd.msg.query_fail", error=exc)) from exc
 
     if not is_newer(latest, current):
         return {"status": "up_to_date", "current": current, "latest": latest}
 
-    log(f"發現新版本 {latest}，正在更新…")
+    log(t("upd.log.found", latest=latest))
     proc = subprocess.run(
         build_update_command(eng), capture_output=True, text=True,
         encoding="utf-8", errors="replace", timeout=300,
         env=utils.child_env(), **utils.hidden_subprocess_kwargs(),
     )
     if proc.returncode:
-        detail = (proc.stderr.strip() or proc.stdout.strip() or "yt-dlp 更新失敗")
+        detail = (proc.stderr.strip() or proc.stdout.strip() or t("upd.msg.update_fail"))
         raise RuntimeError(detail[-600:])
     return {"status": "updated", "current": current, "latest": latest}
 
@@ -115,7 +116,7 @@ def fetch_python_info(timeout=15):
         except Exception as exc:  # noqa: BLE001
             errors.append(str(exc))
     if not series_latest and not overall:
-        raise RuntimeError("無法查詢 Python 最新版本：" + "；".join(errors or ["沒有取得資料"]))
+        raise RuntimeError(t("upd.msg.py_query_fail", details=t("upd.sep").join(errors or [t("upd.msg.no_data")])))
     return {"series_latest": series_latest, "eol": eol, "overall": overall}
 
 
@@ -160,11 +161,11 @@ def winget_python_command(py):
         return None
     series = str(py.get("series", ""))
     if py.get("patch_update") and _SERIES_RE.match(series):
-        return ("複製升級命令", f"winget upgrade --id Python.Python.{series} --exact")
+        return (t("update.copy_upgrade"), f"winget upgrade --id Python.Python.{series} --exact")
     if py.get("new_series") and py.get("overall"):
         newer = ".".join(str(py["overall"]).split(".")[:2])
         if _SERIES_RE.match(newer):
-            return ("複製安裝新版命令", f"winget install --id Python.Python.{newer} --exact")
+            return (t("update.copy_install"), f"winget install --id Python.Python.{newer} --exact")
     return None
 
 
@@ -196,7 +197,7 @@ def check_all(eng, log=lambda text: None, base_dir=None):
         results["ytdlp"] = check_and_update(eng, log)
     except Exception as exc:  # noqa: BLE001
         results["ytdlp"] = {"status": "error", "message": str(exc)}
-    log("正在檢查 Python 版本…")
+    log(t("upd.log.checking_python"))
     try:
         results["python"] = check_python()
         command = winget_python_command(results["python"])
@@ -205,7 +206,7 @@ def check_all(eng, log=lambda text: None, base_dir=None):
     except Exception as exc:  # noqa: BLE001
         results["python"] = {"status": "error", "message": str(exc)}
     if base_dir is not None:
-        log("正在檢查 FFmpeg 版本…")
+        log(t("upd.log.checking_ffmpeg"))
         try:
             results["ffmpeg"] = check_ffmpeg(base_dir)
         except Exception as exc:  # noqa: BLE001

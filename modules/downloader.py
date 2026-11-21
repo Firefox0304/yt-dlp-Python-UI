@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlparse
 
 from modules import engine as engine_mod
 from modules import logger, utils
+from modules.i18n import t
 
 AUDIO_FORMATS = ("mp3", "m4a", "wav", "aac", "flac", "opus")
 LOSSY_AUDIO = ("mp3", "m4a", "aac", "opus")
@@ -56,24 +57,9 @@ _INTERMEDIATE_RE = re.compile(r"\.f[\w-]+\.\w+$")
 
 _FFMPEG_MISSING_RE = re.compile(r"(ffmpeg|ffprobe)( and (ffmpeg|ffprobe))? (is )?not (found|installed)")
 
-MESSAGES = {
-    "no_engine": "找不到 yt-dlp。請執行 pip install yt-dlp，或把 yt-dlp.exe 放進程式資料夾。",
-    "reload": ("YouTube 要求重新載入頁面，可能是 yt-dlp 版本過舊、播放器驗證或登入狀態造成。\n"
-               "請先按「檢查更新」；若仍失敗，請重新匯入 YouTube Cookies.txt。"),
-    "ffmpeg": "FFmpeg 缺失或無法執行。請將 ffmpeg.exe 放入程式資料夾，或將 FFmpeg 加入系統 PATH 後再試一次。",
-    "outdated": "yt-dlp 版本過舊，下載失敗。請先按「檢查更新」。",
-    "http412": ("Bilibili 回傳 HTTP 412（反爬驗證）。請先在瀏覽器登入 bilibili.com，"
-                "也可能需要重新匯入 Cookies.txt；並按「檢查更新」更新 yt-dlp。"),
-    "rate_limit": "對方伺服器回應請求過於頻繁（HTTP 429）。請稍後再試；若有開啟字幕，可減少字幕語言數量。",
-    "cookie_dpapi": "Cookie 讀取失敗：Windows DPAPI 無法解密瀏覽器 Cookie。請改用瀏覽器擴充功能匯出 Cookies.txt。",
-    "cookie": "Cookie 讀取或解析失敗。請確認瀏覽器已完全關閉，或改匯入 Cookies.txt。",
-    "login": "此影片需要登入、年齡驗證或通過機器人檢查。請匯入已登入網站的 Cookies.txt 後再試一次。",
-    "js_runtime": ("yt-dlp 找不到可用的 JavaScript 執行環境，部分 YouTube 影片可能因此無法解析。"
-                   "請安裝 Deno（或 Node.js），並先按「檢查更新」。"),
-    "format": "找不到符合條件的畫質或格式，請改選「預設」畫質再試一次。",
-    "unsupported": "yt-dlp 不支援這個網址，請確認網址是否完整。",
-    "unavailable": "影片無法使用（可能已刪除、私人影片或地區限制）。",
-}
+def _msg(code):
+    """錯誤分類的說明文字（依目前介面語言）。文字在 locales/*.json 的 dl.msg.<code>。"""
+    return t("dl.msg." + code)
 
 
 @dataclass
@@ -144,7 +130,7 @@ def ffmpeg_install_command():
     （例如 Fedora 的 ffmpeg 需要額外軟體庫），顯示 apt 命令反而會誤導，所以不提供。
     """
     if platform.system() == "Linux" and (shutil.which("apt") or shutil.which("apt-get")):
-        return ("複製安裝命令", "sudo apt install ffmpeg")
+        return (t("ffmpeg.copy_install"), "sudo apt install ffmpeg")
     return None
 
 
@@ -152,18 +138,17 @@ def ffmpeg_missing_message(base_dir):
     """找不到 FFmpeg 時顯示的說明，依作業系統附上合適的安裝提示。"""
     system = platform.system()
     name = "ffmpeg.exe" if system == "Windows" else "ffmpeg"
-    lines = ["找不到 FFmpeg，下載（合併影音、轉檔）需要它。", ""]
+    lines = [t("ffmpeg.missing.head"), ""]
     if ffmpeg_install_command():  # 命令本身由對話框另外顯示，並提供複製按鈕
-        lines += ["請在終端機執行下面的命令安裝（需要輸入密碼）；",
-                  f"也可以把 ffmpeg 放進程式資料夾：\n{base_dir}"]
+        lines += [t("ffmpeg.missing.apt"), t("ffmpeg.missing.alt_folder", dir=base_dir)]
     else:
-        lines += [f"請把 {name} 放進程式資料夾：\n{base_dir}", "或將 FFmpeg 加入系統 PATH，然後再試一次。"]
+        lines += [t("ffmpeg.missing.put", name=name, dir=base_dir), t("ffmpeg.missing.or_path")]
         if system == "Windows":
-            lines += ["", "FFmpeg 官網主要提供原始碼，Windows 版通常連結到第三方建置（例如 gyan.dev、BtbN），請在下載頁的「Windows」區塊選擇。"]
+            lines += ["", t("ffmpeg.missing.win")]
         elif system == "Darwin":
-            lines += ["", "macOS 也可以用 Homebrew 安裝：brew install ffmpeg"]
+            lines += ["", t("ffmpeg.missing.mac")]
         elif system == "Linux":
-            lines += ["", "也可以用您的 Linux 發行版的套件管理員安裝 ffmpeg。"]
+            lines += ["", t("ffmpeg.missing.linux")]
     return "\n".join(lines)
 
 
@@ -254,7 +239,7 @@ def expand_target(target):
 def derive_title(item, files):
     """歷史紀錄用的標題：播放清單顯示摘要，單支影片取輸出檔名（不含副檔名）。"""
     if item.playlist:
-        return f"{DEFAULT_PLAYLIST_FOLDER}：{item.folder or DEFAULT_PLAYLIST_FOLDER}（{len(files)} 部）"
+        return t("dl.history.playlist", folder=item.folder or DEFAULT_PLAYLIST_FOLDER, count=len(files))
     for path in reversed(files):
         stem = os.path.splitext(os.path.basename(str(path).replace("\\", "/")))[0]
         if stem:
@@ -388,36 +373,36 @@ def classify_error(lines, rc):
     full_low = "\n".join(lines).lower()
 
     if "the page needs to be reloaded" in low:
-        return "reload", MESSAGES["reload"]
+        return "reload", _msg("reload")
     if _FFMPEG_MISSING_RE.search(low):
-        return "ffmpeg", MESSAGES["ffmpeg"]
+        return "ffmpeg", _msg("ffmpeg")
     if "older than 90 days" in low or ("yt-dlp version" in low and ("old" in low or "outdated" in low)):
-        return "outdated", MESSAGES["outdated"]
+        return "outdated", _msg("outdated")
     if "http error 412" in low or "precondition failed" in low:
-        return "http412", MESSAGES["http412"]
+        return "http412", _msg("http412")
     if "http error 429" in low or "too many requests" in low:
-        return "rate_limit", MESSAGES["rate_limit"]
+        return "rate_limit", _msg("rate_limit")
     if "failed to decrypt with dpapi" in low:
-        return "cookie_dpapi", MESSAGES["cookie_dpapi"]
+        return "cookie_dpapi", _msg("cookie_dpapi")
     if ("cookies-from-browser" in low or "cookie database" in low or "could not copy" in low
             or "cookies.txt" in low or "cookie" in low):
-        return "cookie", MESSAGES["cookie"]
+        return "cookie", _msg("cookie")
     if ("sign in to confirm" in low or "login required" in low or "private video" in low
             or "confirm your age" in low or "not a bot" in low):
-        return "login", MESSAGES["login"]
+        return "login", _msg("login")
     if "requested format is not available" in low:
         if "javascript runtime" in full_low or "js runtime" in full_low:
-            return "js_runtime", MESSAGES["js_runtime"]
-        return "format", MESSAGES["format"]
+            return "js_runtime", _msg("js_runtime")
+        return "format", _msg("format")
     if "javascript runtime" in full_low or "js runtime" in full_low:
-        return "js_runtime", MESSAGES["js_runtime"]
+        return "js_runtime", _msg("js_runtime")
     if "unsupported url" in low:
-        return "unsupported", MESSAGES["unsupported"]
+        return "unsupported", _msg("unsupported")
     if "video unavailable" in low or "this video is not available" in low:
-        return "unavailable", MESSAGES["unavailable"]
+        return "unavailable", _msg("unavailable")
 
     detail = errors[-1][:200] if errors else ""
-    return "unknown", (f"下載失敗（Exit code {rc}）：{detail}" if detail else f"下載失敗（Exit code {rc}）")
+    return "unknown", (t("dl.msg.unknown_exit", rc=rc, detail=detail) if detail else t("dl.msg.unknown_exit_nodetail", rc=rc))
 
 
 # --------------------------------------------------------------------------- #
@@ -530,12 +515,12 @@ def _download_worker(base_dir, items, outdir, opts, controller, progress_cb, log
         os.makedirs(outdir, exist_ok=True)
         eng = engine_mod.resolve_engine(base_dir)
         if eng is None:
-            result.code, result.message = "no_engine", MESSAGES["no_engine"]
+            result.code, result.message = "no_engine", _msg("no_engine")
             return
         logger.get().info("Using yt-dlp engine: %s", eng.label)
 
         if not items:
-            result.code, result.message = "empty", "沒有可下載的項目。"
+            result.code, result.message = "empty", t("dl.msg.empty")
             return
 
         result.total = total = len(items)
@@ -549,7 +534,7 @@ def _download_worker(base_dir, items, outdir, opts, controller, progress_cb, log
                 ok, message, code, files = _run_single(
                     base_dir, eng, item, outdir, opts, controller, index, total, progress_cb, log_cb)
             except OSError as exc:
-                ok, message, code, files = False, f"無法建立資料夾：{exc}", "mkdir_failed", []
+                ok, message, code, files = False, t("dl.msg.mkdir", error=exc), "mkdir_failed", []
             item_finished(index, total, item, ok, message, files)
             result.files.extend(f for f in files if f not in result.files)
             if ok:
@@ -565,11 +550,11 @@ def _download_worker(base_dir, items, outdir, opts, controller, progress_cb, log
         result.success = (not result.cancelled and not result.failures
                           and result.succeeded == result.total)
         if result.cancelled:
-            result.code, result.message = "cancelled", "已取消下載。"
+            result.code, result.message = "cancelled", t("log.cancelled")
         elif total == 1:
-            result.message = "下載完成" if result.success else result.failures[0][1]
+            result.message = t("state.done") if result.success else result.failures[0][1]
         else:
-            result.message = f"完成 {result.succeeded}/{total}，失敗 {len(result.failures)}"
+            result.message = t("dl.msg.batch_done", ok=result.succeeded, total=total, fail=len(result.failures))
             if result.success:
                 result.code = ""
     except Exception as exc:  # noqa: BLE001 — 背景執行緒必須把任何錯誤回報給 UI
@@ -615,7 +600,7 @@ def _run_single(base_dir, eng, item, outdir, opts, controller, index, total, pro
             env=utils.child_env(), **_popen_kwargs(),
         )
     except OSError as exc:
-        return False, f"無法啟動 yt-dlp：{exc}", "start_failed", files
+        return False, t("dl.msg.start_failed", error=exc), "start_failed", files
 
     controller.attach(proc)
     try:
@@ -650,9 +635,9 @@ def _run_single(base_dir, eng, item, outdir, opts, controller, index, total, pro
             pass
 
     if controller.cancelled:
-        return False, "已取消", "cancelled", files
+        return False, t("state.cancelled"), "cancelled", files
     if proc.returncode == 0:
-        return True, "完成", "", files
+        return True, t("dl.item.ok"), "", files
     code, message = classify_error(output, proc.returncode)
     return False, message, code, files
 
@@ -667,7 +652,7 @@ def summarize_info(data):
                       if f.get("height") and f.get("vcodec") not in (None, "none")}, reverse=True)
     entries = data.get("entries") or []
     return {
-        "title": data.get("title") or "（未知標題）",
+        "title": data.get("title") or t("dl.unknown_title"),
         "uploader": data.get("uploader") or data.get("channel") or "",
         "duration": data.get("duration"),
         "is_playlist": data.get("_type") == "playlist",
@@ -680,7 +665,7 @@ def fetch_info(base_dir, url, opts, timeout=90):
     """讀取影片（或播放清單）資訊，不下載。失敗時丟出 RuntimeError（訊息已中文化）。"""
     eng = engine_mod.resolve_engine(base_dir)
     if eng is None:
-        raise RuntimeError(MESSAGES["no_engine"])
+        raise RuntimeError(_msg("no_engine"))
     cmd = list(eng.command) + ["-J", "--no-warnings", "--no-update"]
     if classify_playlist_url(url) == "playlist":  # 純播放清單 → 讀清單摘要；影片加清單 → 只讀那支影片
         cmd += ["--yes-playlist", "--flat-playlist"]
@@ -695,11 +680,11 @@ def fetch_info(base_dir, url, opts, timeout=90):
             timeout=timeout, cwd=base_dir, env=utils.child_env(), **utils.hidden_subprocess_kwargs(),
         )
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("讀取影片資訊逾時，請檢查網路或稍後再試。") from exc
+        raise RuntimeError(t("dl.info.timeout")) from exc
     if proc.returncode:
         _, message = classify_error((proc.stderr or proc.stdout or "").splitlines(), proc.returncode)
         raise RuntimeError(message)
     try:
         return summarize_info(json.loads(proc.stdout))
     except (json.JSONDecodeError, TypeError) as exc:
-        raise RuntimeError(f"無法解析影片資訊：{exc}") from exc
+        raise RuntimeError(t("dl.info.parse", error=exc)) from exc

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" class="pending">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -20,11 +20,20 @@
   --accent:#8199ff;--ink:#0e111a;--accent-soft:#222a4a;--ok:#4fd1a5;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -12px rgba(0,0,0,.6);--bad:#ff7b6e;--scrim:rgba(0,0,0,.55);color-scheme:dark}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden}
-body{background:var(--bg);color:var(--text);font:15px/1.6 "Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;transition:background .35s,color .35s;user-select:none}
+:root{--font:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+html:lang(zh-Hans){--font:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif}  /* 隨附的 Noto Sans TC 缺不少簡體字，簡中與日文改用系統字型 */
+html:lang(ja){--font:"Yu Gothic UI","Meiryo UI","Meiryo","Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+html.pending .app{visibility:hidden}  /* 語言載入完成前先藏起來，避免先閃一下預設語言 */
+.tx{font-weight:inherit}
+.langbox{position:relative;flex:none;display:inline-flex;align-items:center;color:var(--muted)}
+.titlebar .langsel{width:auto;height:30px;padding:0 28px 0 32px;border-radius:99px;border-width:1px;font-size:12.5px;color:inherit;cursor:pointer;background-image:none}  /* 關掉全域 select 自帶的箭頭，改用下面自己畫的三角形 */
+.langbox .globe{position:absolute;left:11px;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;pointer-events:none}  /* 地球：塞在選單左邊，點到等於點選單 */
+.langbox .tri{position:absolute;right:11px;width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:7.8px solid currentColor;pointer-events:none}  /* 朝下的正三角形（寬 9、高 9×0.866） */
+body{background:var(--bg);color:var(--text);font:15px/1.6 var(--font);transition:background .35s,color .35s;user-select:none}
 input,.log{user-select:text}
 .app{display:flex;flex-direction:column;height:100%;border:1px solid var(--line);background:var(--bg);transition:background .35s,transform var(--wt,.5s) cubic-bezier(.2,.7,.3,1),opacity var(--wt,.5s) ease-in;transform-origin:center}
 .app.closing{transform:scale(.95);opacity:0;pointer-events:none}
-.app.hiding{transform:translateY(1500px) scale(.5);opacity:0;pointer-events:none}
+.app.hiding{transform:translateY(200px) scale(.95);opacity:0;pointer-events:none}
 .app[data-max="1"]{border-color:transparent}
 
 /* 標題列 */
@@ -101,7 +110,7 @@ select:disabled{opacity:.4;cursor:not-allowed}
 .log div{animation:in .3s var(--ease) both;word-break:break-all}
 .log .ok{color:var(--ok)}.log .hl{color:var(--text)}
 @keyframes in{from{opacity:0;transform:translateX(-8px)}}
-.chk{display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer;font-size:14px}
+.chk{position:relative;display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer;font-size:14px}  /* 讓隱藏的 input 留在自己的 label 內，聚焦時只會捲動 .content，不會把整頁（含標題列）推走 */
 .chk input{position:absolute;opacity:0}
 .chk span{flex:none;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);background:var(--field);display:grid;place-items:center;transition:background .25s,border-color .25s,transform .2s}
 .chk span::after{content:"";width:5px;height:10px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);margin-top:-2px;transition:transform .3s var(--ease)}
@@ -154,87 +163,88 @@ select:disabled{opacity:.4;cursor:not-allowed}
   <div class="titlebar">
     <div class="drag" id="drag">
       <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="7" fill="var(--accent)"/><path d="M12 6v8m0 0-3.2-3.2M12 14l3.2-3.2M7.5 17.5h9" fill="none" stroke="var(--ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="name">yt-dlp Python UI</span><span class="ver" id="ver">v6.0</span>
+      <span class="name">yt-dlp Python UI</span><span class="ver" id="ver">v6.1</span>
     </div>
-    <div class="seg" id="seg" role="group" aria-label="主題"><i></i>
+    <div class="langbox"><svg class="globe" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><ellipse cx="8" cy="8" rx="3" ry="6.5"/><path d="M1.5 8h13M2.9 4.8h10.2M2.9 11.2h10.2"/></svg><select class="langsel" id="lang" data-i18n-aria="aria.language" aria-label="語言"></select><span class="tri" aria-hidden="true"></span></div>
+    <div class="seg" id="seg" role="group" data-i18n-aria="aria.theme" aria-label="主題"><i></i>
       <button aria-pressed="false">Light</button><button aria-pressed="true">System</button><button aria-pressed="false">Dark</button>
     </div>
     <div class="wc">
-      <button class="wbtn" id="wmin" aria-label="最小化"><svg viewBox="0 0 14 14"><path d="M2.5 7h9"/></svg></button>
-      <button class="wbtn" id="wmax" aria-label="最大化或還原"><svg class="i-max" viewBox="0 0 14 14"><rect x="2.5" y="2.5" width="9" height="9" rx="2"/></svg><svg class="i-restore" viewBox="0 0 14 14"><rect x="2.5" y="4.5" width="7" height="7" rx="1.8"/><path d="M5 4.5V4a1.5 1.5 0 0 1 1.5-1.5H10A1.5 1.5 0 0 1 11.5 4v3.5A1.5 1.5 0 0 1 10 9h-.5"/></svg></button>
-      <button class="wbtn" id="wclose" aria-label="關閉"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+      <button class="wbtn" id="wmin" data-i18n-aria="aria.minimize" aria-label="最小化"><svg viewBox="0 0 14 14"><path d="M2.5 7h9"/></svg></button>
+      <button class="wbtn" id="wmax" data-i18n-aria="aria.maxrestore" aria-label="最大化或還原"><svg class="i-max" viewBox="0 0 14 14"><rect x="2.5" y="2.5" width="9" height="9" rx="2"/></svg><svg class="i-restore" viewBox="0 0 14 14"><rect x="2.5" y="4.5" width="7" height="7" rx="1.8"/><path d="M5 4.5V4a1.5 1.5 0 0 1 1.5-1.5H10A1.5 1.5 0 0 1 11.5 4v3.5A1.5 1.5 0 0 1 10 9h-.5"/></svg></button>
+      <button class="wbtn" id="wclose" data-i18n-aria="aria.close" aria-label="關閉"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
     </div>
   </div>
 
   <div class="content"><div class="grid">
     <main class="card">
-      <label class="t" for="url">網址</label>
+      <label class="t" for="url" data-i18n="url.label">網址</label>
       <div class="line">
-        <div class="wrap"><input class="field" id="url" placeholder="貼上影片或播放清單網址，按 Enter 開始" autocomplete="off"><button class="clr" id="urlclr" type="button" aria-label="清除網址"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
-        <button class="btn" id="batch" type="button">匯入批次下載</button>
+        <div class="wrap"><input class="field" id="url" data-i18n-ph="url.placeholder" placeholder="貼上影片或播放清單網址，按 Enter 開始" autocomplete="off"><button class="clr" id="urlclr" type="button" data-i18n-aria="url.clear" aria-label="清除網址"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+        <button class="btn" id="batch" type="button" data-i18n="batch.btn">匯入批次下載</button>
       </div>
-      <div class="mt"><label class="t" for="ckf">Cookie 檔</label>
+      <div class="mt"><label class="t" for="ckf" data-i18n="cookiefile.label">Cookie 檔</label>
         <div class="line">
-          <div class="wrap"><input class="field" id="ckf" placeholder="尚未匯入（優先於瀏覽器 Cookie，路徑不會被記住）" readonly><button class="clr" id="ckclr" type="button" aria-label="清除 Cookie 檔"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
-          <button class="btn" id="ckpick" type="button">匯入 Cookies.txt</button>
+          <div class="wrap"><input class="field" id="ckf" data-i18n-ph="cookiefile.placeholder" placeholder="尚未匯入（優先於瀏覽器 Cookie，路徑不會被記住）" readonly><button class="clr" id="ckclr" type="button" data-i18n-aria="cookiefile.clear" aria-label="清除 Cookie 檔"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button></div>
+          <button class="btn" id="ckpick" type="button" data-i18n="cookiefile.pick">匯入 Cookies.txt</button>
         </div></div>
       <div class="row mt">
-        <div><label class="t" for="fmt">格式</label><select id="fmt"><option>mp4</option><option>mp3</option><option>mkv</option><option>webm</option><option>wav</option><option>m4a</option><option>flac</option></select></div>
-        <div><label class="t" for="qual">畫質</label><select id="qual"><option>預設</option><option>8K</option><option>4K</option><option>2K</option><option>1080P</option><option>720P</option><option>480P</option><option>240P</option></select></div>
+        <div><label class="t" for="fmt" data-i18n="fmt.label">格式</label><select id="fmt"><option>mp4</option><option>mp3</option><option>mkv</option><option>webm</option><option>wav</option><option>m4a</option><option>flac</option></select></div>
+        <div><label class="t" for="qual" data-i18n="quality.label">畫質</label><select id="qual"><option value="預設" data-i18n="quality.default">預設</option><option>8K</option><option>4K</option><option>2K</option><option>1080P</option><option>720P</option><option>480P</option><option>240P</option></select></div>
       </div>
-      <div class="mt"><label class="t" for="dir">儲存位置</label>
+      <div class="mt"><label class="t" for="dir" data-i18n="dir.label">儲存位置</label>
         <div class="line">
-          <div class="wrap"><input class="field" id="dir" value="Download" readonly><button class="clr on" id="dirclr" type="button" aria-label="重設為預設資料夾" title="重設為預設資料夾"><svg viewBox="0 0 14 14"><path d="M2.5 7a4.5 4.5 0 1 0 1.4-3.2M2.5 2.5v2.6h2.6"/></svg></button></div>
-          <button class="btn" id="pick" type="button">瀏覽</button>
+          <div class="wrap"><input class="field" id="dir" value="Download" readonly><button class="clr on" id="dirclr" type="button" data-i18n-aria="dir.reset" data-i18n-title="dir.reset" aria-label="重設為預設資料夾" title="重設為預設資料夾"><svg viewBox="0 0 14 14"><path d="M2.5 7a4.5 4.5 0 1 0 1.4-3.2M2.5 2.5v2.6h2.6"/></svg></button></div>
+          <button class="btn" id="pick" type="button" data-i18n="dir.pick">瀏覽</button>
         </div></div>
       <div class="actions mt">
-        <button class="btn primary" id="go" type="button">開始下載</button>
-        <button class="btn" id="stop" type="button" disabled>取消下載</button>
-        <button class="btn" id="info" type="button">讀取影片資訊</button>
-        <label class="chk"><input type="checkbox" id="ofile"><span></span>開啟檔案</label>
-        <label class="chk"><input type="checkbox" id="ofolder"><span></span>開啟輸出資料夾</label>
+        <button class="btn primary" id="go" type="button" data-i18n="btn.go">開始下載</button>
+        <button class="btn" id="stop" type="button" disabled data-i18n="btn.stop">取消下載</button>
+        <button class="btn" id="info" type="button" data-i18n="btn.info">讀取影片資訊</button>
+        <label class="chk"><input type="checkbox" id="ofile"><span></span><b class="tx" data-i18n="open.file">開啟檔案</b></label>
+        <label class="chk"><input type="checkbox" id="ofolder"><span></span><b class="tx" data-i18n="open.folder">開啟輸出資料夾</b></label>
       </div>
       <div class="lanes" id="lanes" aria-hidden="true"></div>
-      <div class="stat"><span id="state">待命</span><strong id="pct">0%</strong><span id="speed">—</span></div>
-      <div class="logwrap"><div class="log" id="log" role="log" aria-live="polite"><div>準備就緒。貼上網址後按「開始下載」。</div></div></div>
+      <div class="stat"><span id="state" data-k="state.idle">待命</span><strong id="pct">0%</strong><span id="speed">—</span></div>
+      <div class="logwrap"><div class="log" id="log" role="log" aria-live="polite"><div data-i18n="log.ready">準備就緒。貼上網址後按「開始下載」。</div></div></div>
     </main>
 
     <aside class="card side">
-      <h2>快速操作</h2>
+      <h2 data-i18n="quick.title">快速操作</h2>
       <div class="qa">
-        <button class="btn wide2" id="example" type="button">載入範例</button>
-        <button class="btn" id="upd" type="button">檢查更新</button>
-        <button class="btn" id="help" type="button">說明</button>
-        <button class="btn" id="hist" type="button">下載歷史</button>
-        <button class="btn" id="diag" type="button">系統診斷</button>
+        <button class="btn wide2" id="example" type="button" data-i18n="quick.example">載入範例</button>
+        <button class="btn" id="upd" type="button" data-i18n="quick.update">檢查更新</button>
+        <button class="btn" id="help" type="button" data-i18n="quick.help">說明</button>
+        <button class="btn" id="hist" type="button" data-i18n="quick.history">下載歷史</button>
+        <button class="btn" id="diag" type="button" data-i18n="quick.diag">系統診斷</button>
       </div>
       <hr>
-      <h2>進階下載</h2>
-      <label class="chk"><input type="checkbox" id="subs"><span></span>下載字幕</label>
-      <label class="chk"><input type="checkbox" id="embed"><span></span>嵌入字幕</label>
-      <label class="chk"><input type="checkbox" id="thumb"><span></span>下載縮圖</label>
-      <label class="chk"><input type="checkbox" id="meta"><span></span>加入影片資訊</label>
-      <label class="chk"><input type="checkbox" id="num"><span></span>播放清單自動編號</label>
-      <label class="chk"><input type="checkbox" id="arch"><span></span>記錄已下載（略過重複）</label>
-      <label class="t mt" for="langs">字幕語言</label>
+      <h2 data-i18n="adv.title">進階下載</h2>
+      <label class="chk"><input type="checkbox" id="subs"><span></span><b class="tx" data-i18n="adv.subs">下載字幕</b></label>
+      <label class="chk"><input type="checkbox" id="embed"><span></span><b class="tx" data-i18n="adv.embed">嵌入字幕</b></label>
+      <label class="chk"><input type="checkbox" id="thumb"><span></span><b class="tx" data-i18n="adv.thumb">下載縮圖</b></label>
+      <label class="chk"><input type="checkbox" id="meta"><span></span><b class="tx" data-i18n="adv.meta">加入影片資訊</b></label>
+      <label class="chk"><input type="checkbox" id="num"><span></span><b class="tx" data-i18n="adv.number">播放清單自動編號</b></label>
+      <label class="chk"><input type="checkbox" id="arch"><span></span><b class="tx" data-i18n="adv.archive">記錄已下載（略過重複）</b></label>
+      <label class="t mt" for="langs" data-i18n="adv.sublangs">字幕語言</label>
       <input class="field" id="langs" autocomplete="off">
-      <label class="t mt" for="ck">瀏覽器 Cookie</label>
-      <select id="ck"><option>無</option><option>Chrome</option><option>Edge</option><option>Firefox</option><option>Brave</option><option>Opera</option><option>Vivaldi</option><option>Chromium</option></select>
+      <label class="t mt" for="ck" data-i18n="adv.cookiebrowser">瀏覽器 Cookie</label>
+      <select id="ck"><option value="無" data-i18n="adv.none">無</option><option>Chrome</option><option>Edge</option><option>Firefox</option><option>Brave</option><option>Opera</option><option>Vivaldi</option><option>Chromium</option></select>
       <div class="pin"><hr>
-      <label class="chk"><input type="checkbox" id="boost"><span></span>啟用下載加速</label>
-      <label class="t" for="frag">切片數</label>
+      <label class="chk"><input type="checkbox" id="boost"><span></span><b class="tx" data-i18n="adv.boost">啟用下載加速</b></label>
+      <label class="t" for="frag" data-i18n="adv.frag">切片數</label>
       <select id="frag" disabled><option>4</option><option>8</option><option>16</option></select>
-      <p class="hint">同時下載多個切片，只對分片式串流有效（如 m3u8／HLS、DASH 清單）；遇到不支援的影片，進度條會自動合併成一條。</p></div>
+      <p class="hint" data-i18n="adv.boost.hint">同時下載多個切片，只對分片式串流有效（如 m3u8／HLS、DASH 清單）；遇到不支援的影片，進度條會自動合併成一條。</p></div>
     </aside>
   </div>
-  <p class="note" id="note" hidden>目前是瀏覽器預覽模式：下載過程為模擬，檔案對話框與視窗按鈕不會作用。</p>
+  <p class="note" id="note" hidden data-i18n="preview.note">目前是瀏覽器預覽模式：下載過程為模擬，檔案對話框與視窗按鈕不會作用。</p>
   </div>
 </div>
 <div class="rs" data-e="n"></div><div class="rs" data-e="s"></div><div class="rs" data-e="w"></div><div class="rs" data-e="e"></div>
 <div class="rs" data-e="nw"></div><div class="rs" data-e="ne"></div><div class="rs" data-e="sw"></div><div class="rs" data-e="se"></div>
 
 <div class="ov" id="ov" aria-hidden="true"><div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="mt">
-  <button class="wbtn x" id="mx" type="button" aria-label="關閉視窗"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
+  <button class="wbtn x" id="mx" type="button" data-i18n-aria="aria.closedlg" aria-label="關閉視窗"><svg viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8"/></svg></button>
   <h3 id="mt"></h3><p id="mb"></p><pre class="code" id="mc" hidden></pre><p class="sub" id="mn" hidden></p><div id="mnode"></div><input class="field" id="mi" hidden autocomplete="off"><div class="mbtns" id="mbtns"></div>
 </div></div>
 <div class="toast" id="toast" role="status"></div>
@@ -243,6 +253,31 @@ select:disabled{opacity:.4;cursor:not-allowed}
 const $=id=>document.getElementById(id), root=document.documentElement, app=$("app");
 const api=()=>window.pywebview&&window.pywebview.api;
 const modes=["Light","System","Dark"];
+/* ---------- 多語言：文字由 Python 傳來（locales/*.json），t("代號",{變數}) 取字 ---------- */
+let I18N={},LANG="zh-TW";
+const LANGS=[["zh-TW","繁體中文"],["zh-CN","简体中文"],["en","English"],["ja","日本語"]];
+const HTML_LANG={"zh-TW":"zh-Hant","zh-CN":"zh-Hans",en:"en",ja:"ja"};
+const t=(k,v)=>{let s=I18N[k]??k;if(v)for(const n in v)s=s.split("{"+n+"}").join(v[n]);return s};
+const setState=k=>{const e=$("state");e.dataset.k=k;e.textContent=t(k)};
+function applyI18n(){
+  root.lang=HTML_LANG[LANG]||"zh-Hant";
+  const each=(attr,fn)=>document.querySelectorAll("["+attr+"]").forEach(e=>{const v=I18N[e.getAttribute(attr)];if(v!==undefined)fn(e,v)});
+  each("data-i18n",(e,v)=>e.textContent=v);
+  each("data-i18n-ph",(e,v)=>e.placeholder=v);
+  each("data-i18n-aria",(e,v)=>e.setAttribute("aria-label",v));
+  each("data-i18n-title",(e,v)=>e.title=v);
+  const st=$("state");if(I18N[st.dataset.k]!==undefined)st.textContent=I18N[st.dataset.k];
+  const first=$("lang").options[0];if(first&&I18N["lang.auto"]!==undefined)first.textContent=I18N["lang.auto"];
+}
+function buildLang(setting){
+  const s=$("lang");s.innerHTML="";s.append(new Option(t("lang.auto"),"auto"));
+  LANGS.forEach(([c,n])=>s.append(new Option(n,c)));s.value=setting;
+}
+$("lang").onchange=async()=>{
+  if(!api())return;
+  const r=await api().set_language($("lang").value);
+  I18N=r.strings;LANG=r.lang;applyI18n();
+};
 let ready=false,running=false,cells=[],timer=null,cookieFile="",defaultDir="Download";
 
 /* ---------- 主題 ---------- */
@@ -313,7 +348,7 @@ async function copyText(t){
   const a=document.createElement("textarea");a.value=t;document.body.append(a);a.select();
   let ok=false;try{ok=document.execCommand("copy")}catch(_){}a.remove();return ok;
 }
-const copyButton=(label,text)=>({label,keep:async e=>{const ok=await copyText(text);e.textContent=ok?"已複製 ✓":"複製失敗";setTimeout(()=>e.textContent=label,2000)}});
+const copyButton=(label,text)=>({label,keep:async e=>{const ok=await copyText(text);e.textContent=ok?t("copy.done"):t("copy.fail");setTimeout(()=>e.textContent=label,2000)}});
 $("mx").onclick=()=>closeModal({id:"cancel"});
 $("ov").onmousedown=e=>{if(e.target===$("ov"))closeModal({id:"cancel"})};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal({id:"cancel"})});
@@ -357,14 +392,14 @@ function busy(on){
   running=on;
   ["go","info","url","batch","ckpick","pick","dirclr","example","upd"].forEach(id=>$(id).disabled=on);
   $("stop").disabled=!on;
-  if(on)$("state").textContent="下載中";
+  if(on)setState("state.running");
   syncClear();
 }
 
 /* ---------- Python → 網頁 ---------- */
 window.__py=e=>{
   if(e.type==="log")log(e.text,e.cls||"");
-  else if(e.type==="progress"){if(e.frag!==undefined)decideFrag(e.frag);if(e.pct!=null)paint(e.pct);$("speed").textContent=e.speed?(e.speed+(e.eta?"　剩餘 "+e.eta:"")):"—"}
+  else if(e.type==="progress"){if(e.frag!==undefined)decideFrag(e.frag);if(e.pct!=null)paint(e.pct);$("speed").textContent=e.speed?(e.speed+(e.eta?t("speed.eta",{eta:e.eta}):"")):"—"}
   else if(e.type==="state"){busy(e.busy);if(e.busy){buildLanes();paint(0)}}
   else if(e.type==="video_start")fragDecided=false;  // 沿用目前樣式，等這支影片的第一筆進度再決定，避免每支影片都閃一下
   else if(e.type==="win"){app.dataset.max=e.maximized?"1":"0";settle();applyScale()}
@@ -379,13 +414,13 @@ window.__py=e=>{
 };
 async function onDone(e){
   $("speed").textContent="—";
-  if(e.ok){$("state").textContent="下載完成";paint(100);log("結束："+e.message,"ok");toast("下載完成");return}
-  if(e.cancelled){$("state").textContent="已取消";log("結束：已取消下載。");return}
-  $("state").textContent="錯誤";log("結束："+e.message);
+  if(e.ok){setState("state.done");paint(100);log(t("end.ok",{message:e.message}),"ok");toast(t("state.done"));return}
+  if(e.cancelled){setState("state.cancelled");log(t("end.cancelled"));return}
+  setState("state.error");log(t("end.ok",{message:e.message}));
   let body=e.message;
-  if(e.failures&&e.failures.length>1){body+="\n\n"+e.failures.map(f=>`• ${f.url}\n  ${f.message}`).join("\n")+(e.more?`\n…另有 ${e.more} 筆失敗`:"")}
+  if(e.failures&&e.failures.length>1){body+="\n\n"+e.failures.map(f=>`• ${f.url}\n  ${f.message}`).join("\n")+(e.more?"\n"+t("fail.more",{n:e.more}):"")}
   const ff=e.code==="ffmpeg";
-  const r=await askModal({title:ff?"缺少 FFmpeg":"下載失敗",body,buttons:ff?[{id:"ff",label:"開啟 FFmpeg 下載頁",primary:true}]:[]});
+  const r=await askModal({title:ff?t("modal.ffmissing"):t("modal.fail"),body,buttons:ff?[{id:"ff",label:t("ffmpeg.open"),primary:true}]:[]});
   if(r.id==="ff"&&api())api().open_ffmpeg_page();
 }
 
@@ -400,30 +435,30 @@ window.addEventListener("resize",applyScale);applyScale();
 /* ---------- 開始下載 ---------- */
 function localPrepare(p){  // 瀏覽器預覽模式用的簡化判斷
   if(p.url.startsWith("file:")||!/[?&]list=/.test(p.url))return{ok:true,ask:null};
-  return{ok:true,ask:"single",kind:/\/playlist/.test(p.url)?"playlist":"mixed",default_name:"播放清單1"};
+  return{ok:true,ask:"single",kind:/\/playlist/.test(p.url)?"playlist":"mixed",default_name:t("preview.playlist_name")};
 }
 async function askPlaylist(prep){
   if(prep.ask==="single"){
     const mixed=prep.kind==="mixed";
-    const r=await askModal({title:"偵測到播放清單",
-      body:mixed?"這個網址同時包含「單一影片」與「所屬的播放清單」。\n請選擇要下載的內容：":"這是播放清單網址，會下載清單內的所有影片（數量可能很多）。\n要繼續嗎？",
-      input:`清單資料夾名稱（留空則用「${prep.default_name}」）`,
-      buttons:(mixed?[{id:"single",label:"只下載這支影片",primary:true}]:[]).concat([{id:"playlist",label:"下載整個播放清單",primary:!mixed}])});
+    const r=await askModal({title:t("playlist.title"),
+      body:mixed?t("playlist.mixed.body"):t("playlist.pure.body"),
+      input:t("playlist.input",{name:prep.default_name}),
+      buttons:(mixed?[{id:"single",label:t("playlist.btn.single"),primary:true}]:[]).concat([{id:"playlist",label:t("playlist.btn.all"),primary:!mixed}])});
     return r.id==="cancel"?null:{mode:r.id,name:r.value};
   }
-  const r=await askModal({title:"偵測到播放清單",
-    body:`批次清單中有 ${prep.total} 筆網址含有播放清單（其中 ${prep.pure} 筆是純播放清單）。\n\n每個播放清單會自動以「播放清單N」命名資料夾。\n請選擇處理方式：`,
-    buttons:[{id:"single",label:"只下載單一影片\n（純播放清單會略過）",primary:true},{id:"playlist",label:"下載整個播放清單"}]});
+  const r=await askModal({title:t("playlist.title"),
+    body:t("playlist.batch.body",{total:prep.total,pure:prep.pure}),
+    buttons:[{id:"single",label:t("playlist.batch.single"),primary:true},{id:"playlist",label:t("playlist.btn.all")}]});
   return r.id==="cancel"?null:{mode:r.id,name:""};
 }
 async function start(){
   if(running||modalDone)return;
   const p=payload();
-  if(!p.url){shake();log("請先貼上網址。");return}
+  if(!p.url){shake();log(t("err.no_url"));return}
   const prep=api()?await api().prepare_download(p):localPrepare(p);
   if(!prep.ok){log(prep.error);shake();return}
   let decision=null;
-  if(prep.ask){decision=await askPlaylist(prep);if(!decision){log("已取消下載。");return}}
+  if(prep.ask){decision=await askPlaylist(prep);if(!decision){log(t("log.cancelled"));return}}
   if(!api())return simulate(p);
   const r=await api().start_download(p,decision);
   if(!r.ok){log(r.error);shake()}
@@ -435,9 +470,9 @@ $("urlclr").onclick=()=>{$("url").value="";syncClear();$("url").focus()};
 $("stop").onclick=()=>{$("stop").disabled=true;api()?api().cancel_download():stopSim()};
 $("info").onclick=async()=>{
   const u=$("url").value.trim();
-  if(!u){shake();log("請先貼上網址。");return}
-  if(!api()){log("標題：範例影片　長度：04:32　可用畫質：1080P、720P、480P","hl");return}
-  $("info").disabled=true;$("go").disabled=true;log("正在讀取影片資訊…");
+  if(!u){shake();log(t("err.no_url"));return}
+  if(!api()){log(t("preview.info"),"hl");return}
+  $("info").disabled=true;$("go").disabled=true;log(t("log.reading_info"));
   const r=await api().fetch_info(u,$("ck").value,cookieFile);
   if(!r.ok){log(r.error);$("info").disabled=false;$("go").disabled=false}
 };
@@ -449,65 +484,65 @@ $("ckpick").onclick=async()=>{if(!api())return;const f=await api().pick_cookie_f
 $("ckclr").onclick=()=>{cookieFile="";$("ckf").value="";syncClear()};
 async function applyBatch(r,from){
   if(r.cancelled)return;
-  if(!r.ok){await askModal({title:r.missing?"範例不存在":"無法使用這份清單",body:r.error});return}
+  if(!r.ok){await askModal({title:r.missing?t("modal.example.missing"):t("modal.batch.unusable"),body:r.error});return}
   $("url").value="file:"+r.path;syncClear();
-  log(from==="example"?"已載入 example.txt":`匯入批次下載清單：${r.path}（${r.count} 筆網址）`);
+  log(from==="example"?t("log.example_loaded"):t("log.batch_imported",{path:r.path,count:r.count}));
 }
-$("batch").onclick=async()=>{if(!api())return log("預覽模式：無法開啟檔案對話框。");applyBatch(await api().pick_batch_file(),"batch")};
-$("example").onclick=async()=>{if(!api())return log("預覽模式：沒有範例檔。");applyBatch(await api().load_example(),"example")};
+$("batch").onclick=async()=>{if(!api())return log(t("preview.no_dialog"));applyBatch(await api().pick_batch_file(),"batch")};
+$("example").onclick=async()=>{if(!api())return log(t("preview.no_example"));applyBatch(await api().load_example(),"example")};
 
 /* ---------- 說明、診斷、歷史、檢查更新 ---------- */
-const PREVIEW_MSG="這是瀏覽器預覽模式，沒有連接 Python，這個功能無法使用。";
+const previewMsg=()=>t("preview.msg");
 $("help").onclick=async()=>{
-  if(!api())return askModal({title:"說明",body:PREVIEW_MSG});
+  if(!api())return askModal({title:t("quick.help"),body:previewMsg()});
   const h=await api().get_help();
   const credit=document.createElement("div");credit.className="credit";credit.textContent=h.credit;
-  askModal({title:"說明",body:h.text,node:credit,wide:true});
+  askModal({title:t("quick.help"),body:h.text,node:credit,wide:true});
 };
 $("diag").onclick=()=>{
-  if(!api())return askModal({title:"系統診斷",body:PREVIEW_MSG});
+  if(!api())return askModal({title:t("quick.diag"),body:previewMsg()});
   $("diag").disabled=true;api().run_diagnostics();
 };
 $("hist").onclick=async()=>{
-  if(!api())return askModal({title:"下載歷史",body:PREVIEW_MSG});
+  if(!api())return askModal({title:t("quick.history"),body:previewMsg()});
   const rows=await api().get_history();
-  if(!rows.length)return askModal({title:"下載歷史",body:"目前沒有下載紀錄。"});
+  if(!rows.length)return askModal({title:t("quick.history"),body:t("hist.empty")});
   const list=document.createElement("div");list.className="hist";
   rows.forEach(r=>{
     const d=document.createElement("div");d.className="hrow";
     const tm=Object.assign(document.createElement("span"),{className:"tm",textContent:`[${r.time}]`});
-    const st=Object.assign(document.createElement("span"),{className:"st "+(r.ok?"ok":"no"),textContent:r.ok?"成功":"失敗"});
+    const st=Object.assign(document.createElement("span"),{className:"st "+(r.ok?"ok":"no"),textContent:r.ok?t("hist.ok"):t("hist.fail")});
     const mt=Object.assign(document.createElement("span"),{className:"mt2",textContent:`${r.fmt}　${r.quality}`});
     const a=Object.assign(document.createElement("button"),{className:"lnk",type:"button",textContent:r.title,title:r.url});
     a.onclick=()=>api().open_target(r.url);
     d.append(tm,st,mt,a);list.append(d);
   });
-  const r=await askModal({title:`下載歷史（最近 ${rows.length} 筆）`,node:list,wide:true,buttons:[{id:"clear",label:"清除歷史",danger:true}]});
+  const r=await askModal({title:t("hist.title",{n:rows.length}),node:list,wide:true,buttons:[{id:"clear",label:t("hist.clear"),danger:true}]});
   if(r.id==="clear"){
-    const c=await askModal({title:"清除歷史",body:"確定要清除所有下載紀錄嗎？",buttons:[{id:"yes",label:"確定清除",danger:true}]});
-    if(c.id==="yes"){await api().clear_history();toast("已清除下載歷史")}
+    const c=await askModal({title:t("hist.clear"),body:t("hist.clear.confirm"),buttons:[{id:"yes",label:t("hist.clear.yes"),danger:true}]});
+    if(c.id==="yes"){await api().clear_history();toast(t("hist.cleared"))}
   }
 };
 $("upd").onclick=async()=>{
-  if(!api())return askModal({title:"檢查更新",body:PREVIEW_MSG});
+  if(!api())return askModal({title:t("quick.update"),body:previewMsg()});
   const r=await api().check_update();
   if(!r.ok){log(r.error);return}
-  $("upd").disabled=true;log("正在檢查更新（yt-dlp、Python、FFmpeg），請稍候…");
+  $("upd").disabled=true;log(t("upd.checking"));
 };
 async function onUpdateDone(e){
   $("upd").disabled=running;
   log(e.text);
   const buttons=[];
-  if(e.python_url)buttons.push({id:"py",label:"開啟 Python 下載頁"});
+  if(e.python_url)buttons.push({id:"py",label:t("python.open")});
   if(e.command)buttons.push(copyButton(e.command.label,e.command.text));
-  if(e.ffmpeg_url)buttons.push({id:"ff",label:"開啟 FFmpeg 下載頁"});
-  const r=await askModal({title:"檢查更新",body:e.text,buttons,
-    code:e.command?e.command.text:"",note:e.command?`${e.command.title}（按「複製」會放進剪貼簿）。${e.command.note}`:""});
+  if(e.ffmpeg_url)buttons.push({id:"ff",label:t("ffmpeg.open")});
+  const r=await askModal({title:t("quick.update"),body:e.text,buttons,
+    code:e.command?e.command.text:"",note:e.command?t("upd.note",{title:e.command.title,note:e.command.note}):""});
   if(r.id==="py")api().open_python_page();else if(r.id==="ff")api().open_ffmpeg_page();
 }
 async function onDiag(e){
   $("diag").disabled=false;
-  askModal({title:"系統診斷",code:e.text,buttons:[copyButton("複製診斷資訊",e.text)]});
+  askModal({title:t("quick.diag"),code:e.text,buttons:[copyButton(t("copy.diag"),e.text)]});
 }
 
 /* ---------- 瀏覽器預覽模式：模擬下載 ---------- */
@@ -518,21 +553,26 @@ function simulate(p){
     v=Math.min(100,v+(.5+Math.random())*gain/(cells.length>1?1.2:1));paint(v);
     const mb=(3.8+Math.random()*1.2)*gain;$("speed").textContent=mb.toFixed(1)+" MiB/s";
     if(tick%12===0)log(`[download] ${v.toFixed(1)}% of 84.2MiB at ${mb.toFixed(1)}MiB/s`);
-    if(v>=100){clearInterval(timer);busy(false);onDone({ok:true,message:"下載完成"})}},150);
+    if(v>=100){clearInterval(timer);busy(false);onDone({ok:true,message:t("state.done")})}},150);
 }
 function stopSim(){clearInterval(timer);busy(false);paint(0);onDone({cancelled:true})}
 
 /* ---------- 啟動 ---------- */
 async function init(){
   if(ready&&!api())return;
-  if(!api()){$("note").hidden=false;ready=true;syncClear();return}
+  if(!api()){await loadPreviewLocale();buildLang("auto");$("note").hidden=false;ready=true;syncClear();root.classList.remove("pending");return}
   $("note").hidden=true;
   const s=await api().get_state();
+  I18N=s.strings||{};LANG=s.lang||"zh-TW";buildLang(s.language||"auto");applyI18n();
   $("ver").textContent="v"+s.version;defaultDir=s.default_dir;$("dir").value=s.outdir;
   for(const k in FIELDS){const [id,t]=FIELDS[k],e=$(id);
     if(t==="c")e.checked=!!s[k];else if(e.tagName==="SELECT")setSel(id,String(s[k]));else e.value=s[k]}
-  $("frag").disabled=!s.boost;buildLanes();setMode(s.appearance,false);ready=true;syncClear();
+  $("frag").disabled=!s.boost;buildLanes();setMode(s.appearance,false);ready=true;syncClear();root.classList.remove("pending");
 }
+async function loadPreviewLocale(){  // 瀏覽器預覽模式沒有 Python；能讀到 locales 就用繁中，讀不到就維持畫面上寫死的繁中
+  try{const r=await fetch("../locales/zh-TW.json");I18N=await r.json();LANG="zh-TW";applyI18n()}catch(_){}
+}
+setTimeout(()=>root.classList.remove("pending"),3000);  // 保險：無論如何 3 秒後一定顯示畫面
 window.addEventListener("pywebviewready",init);
 setTimeout(()=>{if(!ready)init()},600);
 </script>
