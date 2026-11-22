@@ -50,11 +50,13 @@ pip install -r requirements.txt
 在專案根目錄執行（只用標準函式庫，不需額外安裝）：
 
 ```
-python -m unittest                 # 單元測試（進度解析、下載命令、網址整理、安全檢查、版本與語言檔一致性）
+python -m unittest                 
 ```
+> 單元測試（進度解析、下載命令、網址整理、安全檢查、版本與語言檔一致性）
 ```
-python tools/check_locales.py      # 檢查四個語言資料夾是否缺字、多字、重複、放錯檔案、占位符不一致
+python tools/check_locales.py
 ```
+>檢查四個語言資料夾是否缺字、多字、重複、放錯檔案、占位符不一致
 
 版本號只在 `modules/version.py` 的 `APP_VERSION` 修改一處；標題列與視窗標題都會自動帶入，
 改版時記得在 `CHANGELOG.md` 最上方新增同版本號的標題（測試會檢查兩者一致）。
