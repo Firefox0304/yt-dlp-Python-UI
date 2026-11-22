@@ -51,6 +51,8 @@ pip install -r requirements.txt
 
 ```
 python -m unittest                 # 單元測試（進度解析、下載命令、網址整理、安全檢查、版本與語言檔一致性）
+```
+```
 python tools/check_locales.py      # 檢查四個語言資料夾是否缺字、多字、重複、放錯檔案、占位符不一致
 ```
 
