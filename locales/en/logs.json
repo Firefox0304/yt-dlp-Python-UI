@@ -1,0 +1,14 @@
+{
+ "log.ready": "Ready. Paste a URL and click \"Start download\".",
+ "log.open_blocked": "For safety, this file type is not opened automatically: {name}",
+ "log.cancelled": "Download cancelled.",
+ "log.reading_info": "Reading video info…",
+ "log.example_loaded": "Loaded example.txt",
+ "log.batch_imported": "Imported batch list: {path} ({count} URLs)",
+ "log.batch_ignored": "Skipped {count} line(s) that could not be recognized as URLs.",
+ "log.start": "Starting download -> {target}  Format: {fmt}  Quality: {quality}  Output: {outdir}",
+ "log.cancelling": "Cancelling download…",
+ "log.item_start": "[{index}/{total}] Started: {url}",
+ "log.item_playlist": "Downloading the whole playlist → folder: {folder}",
+ "log.item_result": "[{index}/{total}] {status}: {message}"
+}

@@ -1,0 +1,14 @@
+{
+ "log.ready": "準備完了。URLを貼り付けて「ダウンロード」をクリックしてください。",
+ "log.open_blocked": "安全のため、この種類のファイルは自動で開きません：{name}",
+ "log.cancelled": "ダウンロードをキャンセルしました。",
+ "log.reading_info": "動画情報を取得しています…",
+ "log.example_loaded": "example.txt を読み込みました",
+ "log.batch_imported": "一括ダウンロードリストを読み込みました：{path}（{count} 件のURL）",
+ "log.batch_ignored": "URLとして認識できない行を {count} 行スキップしました。",
+ "log.start": "ダウンロード開始 -> {target}　形式：{fmt}　画質：{quality}　出力先：{outdir}",
+ "log.cancelling": "ダウンロードをキャンセルしています…",
+ "log.item_start": "[{index}/{total}] 開始：{url}",
+ "log.item_playlist": "プレイリスト全体をダウンロード → フォルダー：{folder}",
+ "log.item_result": "[{index}/{total}] {status}：{message}"
+}

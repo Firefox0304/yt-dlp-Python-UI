@@ -1,0 +1,12 @@
+{
+ "err.no_url": "Paste a URL first.",
+ "err.invalid_url": "That is not a valid URL. Paste a URL starting with https://, or one like youtube.com/watch?v=…",
+ "err.example_missing": "example/example.txt was not found.\n\nSet examplegeneration in config/settings.json to false (or delete that line) and restart the program to generate it again.",
+ "err.list_read": "Can't read the list: {error}",
+ "err.list_empty": "The batch list has no usable URLs (blank lines and # comments are ignored).",
+ "err.busy": "A download is already in progress.",
+ "err.batch_read": "Can't read the batch list: {error}",
+ "err.only_playlists_skipped": "The list contains only playlist URLs and you chose to skip them, so there is nothing to download.",
+ "err.batch_info": "Video info can't be read for a batch list; paste a single URL instead.",
+ "err.update_busy": "A download is in progress; check for updates after it finishes."
+}

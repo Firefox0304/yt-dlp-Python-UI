@@ -1,0 +1,12 @@
+{
+ "err.no_url": "先にURLを貼り付けてください。",
+ "err.invalid_url": "有効なURLではありません。https:// で始まるURL、または youtube.com/watch?v=… のようなURLを貼り付けてください。",
+ "err.example_missing": "example/example.txt が見つかりません。\n\nconfig/settings.json の examplegeneration を false にする（またはその行を削除する）と、再起動時に再生成されます。",
+ "err.list_read": "リストを読み込めません：{error}",
+ "err.list_empty": "一括リストに使用できるURLがありません（空行と # のコメントは無視されます）。",
+ "err.busy": "すでにダウンロードが進行中です。",
+ "err.batch_read": "一括リストを読み込めません：{error}",
+ "err.only_playlists_skipped": "リストにはプレイリストのURLしかなく、スキップが選択されているため、ダウンロードする項目がありません。",
+ "err.batch_info": "一括リストでは動画情報を取得できません。単一のURLを貼り付けてください。",
+ "err.update_busy": "ダウンロード中です。終了してから更新を確認してください。"
+}

@@ -1,0 +1,12 @@
+{
+ "err.no_url": "請先貼上網址。",
+ "err.invalid_url": "這不是有效的網址。請貼上 https:// 開頭的網址，或像 youtube.com/watch?v=… 這樣的網址。",
+ "err.example_missing": "找不到 example/example.txt。\n\n請把 config/settings.json 的 examplegeneration 改成 false（或刪除那一行），重新啟動程式就會再產生。",
+ "err.list_read": "無法讀取清單：{error}",
+ "err.list_empty": "批次清單中沒有可用的網址（空行與 # 註解會被忽略）。",
+ "err.busy": "已經有下載在進行中。",
+ "err.batch_read": "無法讀取批次清單：{error}",
+ "err.only_playlists_skipped": "清單中只有播放清單網址，而且已選擇略過，所以沒有要下載的項目。",
+ "err.batch_info": "批次清單無法讀取影片資訊，請改貼單一網址。",
+ "err.update_busy": "下載進行中，請等下載結束再檢查更新。"
+}

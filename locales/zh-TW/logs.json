@@ -1,0 +1,14 @@
+{
+ "log.ready": "準備就緒。貼上網址後按「開始下載」。",
+ "log.open_blocked": "為了安全，不自動開啟這種類型的檔案：{name}",
+ "log.cancelled": "已取消下載。",
+ "log.reading_info": "正在讀取影片資訊…",
+ "log.example_loaded": "已載入 example.txt",
+ "log.batch_imported": "匯入批次下載清單：{path}（{count} 筆網址）",
+ "log.batch_ignored": "略過 {count} 行無法辨識的網址。",
+ "log.start": "開始下載 -> {target}　格式：{fmt}　畫質：{quality}　輸出：{outdir}",
+ "log.cancelling": "正在取消下載…",
+ "log.item_start": "[{index}/{total}] 開始：{url}",
+ "log.item_playlist": "下載整個播放清單 → 資料夾：{folder}",
+ "log.item_result": "[{index}/{total}] {status}：{message}"
+}

@@ -19,6 +19,8 @@ from urllib.parse import parse_qs, urlparse
 
 from modules import engine as engine_mod
 from modules import logger, utils
+from modules.progress import PROGRESS_TEMPLATE, parse_progress_line
+from modules.urls import extract_url
 from modules.i18n import t
 
 AUDIO_FORMATS = ("mp3", "m4a", "wav", "aac", "flac", "opus")
@@ -37,12 +39,6 @@ FRAGMENT_CHOICES = (4, 8, 16)  # 下載加速可選的切片數（yt-dlp -N）
 DEFAULT_FRAGMENTS = 4
 NO_COOKIE_VALUES = ("", "無", "none", "None", "不使用")
 
-PROGRESS_TEMPLATE = ("Downloading:%(progress._percent_str)s | "
-                     "%(progress._speed_str)s | ETA %(progress._eta_str)s | "
-                     "FRAG %(progress.fragment_count)s")  # 分片下載才有數字，其他是 NA
-
-_PROGRESS_RE = re.compile(r"^(?:Downloading:|\[download\])\s*(\d+(?:[.,]\d+)?)\s*%")
-
 # 從 yt-dlp 輸出判斷最終檔案位置（後出現的覆蓋先出現的，Merger / ExtractAudio 在最後）
 _PATH_PATTERNS = [
     re.compile(r'^\[Merger\] Merging formats into "(.+)"$'),
@@ -58,7 +54,7 @@ _INTERMEDIATE_RE = re.compile(r"\.f[\w-]+\.\w+$")
 _FFMPEG_MISSING_RE = re.compile(r"(ffmpeg|ffprobe)( and (ffmpeg|ffprobe))? (is )?not (found|installed)")
 
 def _msg(code):
-    """錯誤分類的說明文字（依目前介面語言）。文字在 locales/*.json 的 dl.msg.<code>。"""
+    """錯誤分類的說明文字（依目前介面語言）。文字在 locales/<語言>/strings.json 的 dl.msg.<code>。"""
     return t("dl.msg." + code)
 
 
@@ -152,17 +148,30 @@ def ffmpeg_missing_message(base_dir):
     return "\n".join(lines)
 
 
-def read_batch_urls(path):
-    """讀取批次清單：忽略空行與 # 註解，並移除重複網址（保留原本順序）。"""
-    urls, seen = [], set()
+def read_batch(path):
+    """讀取批次清單，回傳 (網址清單, 無法辨識的行數)。
+
+    忽略空行與 # 註解；每一行用 urls.extract_url 整理（行首多餘的文字會被丟掉、沒有 https:// 的會補上），
+    整理後才去除重複（保留原本順序）。完全認不出網址的行不下載，只計入第二個回傳值。
+    """
+    found, seen, ignored = [], set(), 0
     with open(path, encoding="utf-8-sig") as f:
         for raw in f:
             line = raw.strip()
-            if not line or line.startswith("#") or line in seen:
+            if not line or line.startswith("#"):
                 continue
-            seen.add(line)
-            urls.append(line)
-    return urls
+            url = extract_url(line)
+            if url is None:
+                ignored += 1
+            elif url not in seen:
+                seen.add(url)
+                found.append(url)
+    return found, ignored
+
+
+def read_batch_urls(path):
+    """read_batch 只取網址清單的版本。"""
+    return read_batch(path)[0]
 
 
 _YOUTUBE_HOSTS = ("youtube.com", "youtu.be", "youtube-nocookie.com")
@@ -229,11 +238,13 @@ def next_playlist_folder(outdir, reserved=()):
 
 
 def expand_target(target):
-    """把輸入框內容展開成網址清單：單一網址，或 ``file:<清單路徑>`` 的所有網址。"""
+    """把輸入框內容展開成網址清單：單一網址（經 urls.extract_url 整理；認不出網址就是空清單），
+    或 ``file:<清單路徑>`` 的所有網址。"""
     target = (target or "").strip()
     if target.startswith("file:"):
         return read_batch_urls(target[5:])
-    return [target] if target else []
+    url = extract_url(target)
+    return [url] if url else []
 
 
 def derive_title(item, files):
@@ -611,13 +622,12 @@ def _run_single(base_dir, eng, item, outdir, opts, controller, index, total, pro
             output.append(line)
             logger.get().debug("yt-dlp: %s", line)
 
-            match = _PROGRESS_RE.match(line)
-            if match:
-                fraction = float(match.group(1).replace(",", ".")) / 100.0
-                fraction = max(0.0, min(1.0, fraction))
-                progress_cb((index - 1 + fraction) / total, prefix + line)
-            elif line.startswith("Downloading:"):
-                progress_cb(None, prefix + line)  # 例如 N/A%，只更新文字
+            info = parse_progress_line(line)
+            if info is not None:
+                if info.percent is None:
+                    progress_cb(None, prefix + line)  # 例如 N/A%，只更新文字
+                else:
+                    progress_cb((index - 1 + info.percent / 100.0) / total, prefix + line)
             else:
                 path = extract_output_path(line)
                 if path:

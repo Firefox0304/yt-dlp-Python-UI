@@ -1,0 +1,14 @@
+{
+ "log.ready": "准备就绪。粘贴网址后点击“开始下载”。",
+ "log.open_blocked": "为了安全，不自动打开这种类型的文件：{name}",
+ "log.cancelled": "已取消下载。",
+ "log.reading_info": "正在读取视频信息…",
+ "log.example_loaded": "已载入 example.txt",
+ "log.batch_imported": "导入批量下载列表：{path}（{count} 条网址）",
+ "log.batch_ignored": "已跳过 {count} 行无法识别的网址。",
+ "log.start": "开始下载 -> {target}　格式：{fmt}　画质：{quality}　输出：{outdir}",
+ "log.cancelling": "正在取消下载…",
+ "log.item_start": "[{index}/{total}] 开始：{url}",
+ "log.item_playlist": "下载整个播放列表 → 文件夹：{folder}",
+ "log.item_result": "[{index}/{total}] {status}：{message}"
+}

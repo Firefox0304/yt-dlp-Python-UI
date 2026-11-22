@@ -1,0 +1,170 @@
+@font-face{font-family:"Noto Sans TC";font-weight:400 500;src:url("../fonts/NotoSansTC-Regular.ttf")}
+@font-face{font-family:"Noto Sans TC";font-weight:700;src:url("../fonts/NotoSansTC-Bold.ttf")}
+:root{
+  --bg:#f2f4f9;--surface:#fff;--field:#f5f6fb;--text:#151a26;--muted:#5d6678;--line:#e0e4ee;--hover:rgba(90,104,140,.14);
+  --accent:#3454f4;--ink:#fff;--accent-soft:#e6ebff;--ok:#12906b;--shadow:0 1px 2px rgba(20,28,60,.05),0 12px 32px -12px rgba(20,28,60,.14);
+  --bad:#c0392b;--scrim:rgba(14,18,30,.42);--ease:cubic-bezier(.3,.9,.3,1);color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e111a;--surface:#171b27;--field:#11141e;--text:#e8ebf4;--muted:#9ba4b9;--line:#272d40;--hover:rgba(255,255,255,.11);
+  --accent:#8199ff;--ink:#0e111a;--accent-soft:#222a4a;--ok:#4fd1a5;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -12px rgba(0,0,0,.6);--bad:#ff7b6e;--scrim:rgba(0,0,0,.55);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e111a;--surface:#171b27;--field:#11141e;--text:#e8ebf4;--muted:#9ba4b9;--line:#272d40;--hover:rgba(255,255,255,.11);
+  --accent:#8199ff;--ink:#0e111a;--accent-soft:#222a4a;--ok:#4fd1a5;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -12px rgba(0,0,0,.6);--bad:#ff7b6e;--scrim:rgba(0,0,0,.55);color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+:root{--font:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
+html:lang(zh-Hans){--font:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif}  /* 隨附的 Noto Sans TC 缺不少簡體字，簡中與日文改用系統字型 */
+html:lang(ja){--font:"Yu Gothic UI","Meiryo UI","Meiryo","Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+html.pending .app{visibility:hidden}  /* 語言載入完成前先藏起來，避免先閃一下預設語言 */
+.tx{font-weight:inherit}
+.langbox{position:relative;flex:none;display:inline-flex;align-items:center;color:var(--muted)}
+.titlebar .langsel{width:auto;height:30px;padding:0 28px 0 32px;border-radius:99px;border-width:1px;font-size:12.5px;color:inherit;cursor:pointer;background-image:none}  /* 關掉全域 select 自帶的箭頭，改用下面自己畫的三角形 */
+.langbox .globe{position:absolute;left:11px;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;pointer-events:none}  /* 地球：塞在選單左邊，點到等於點選單 */
+.langbox .tri{position:absolute;right:11px;width:0;height:0;border-left:4.5px solid transparent;border-right:4.5px solid transparent;border-top:7.8px solid currentColor;pointer-events:none}  /* 朝下的正三角形（寬 9、高 9×0.866） */
+body{background:var(--bg);color:var(--text);font:15px/1.6 var(--font);transition:background .35s,color .35s;user-select:none}
+input,.log{user-select:text}
+.app{display:flex;flex-direction:column;height:100%;border:1px solid var(--line);background:var(--bg);transition:background .35s,transform var(--wt,.5s) cubic-bezier(.2,.7,.3,1),opacity var(--wt,.5s) ease-in;transform-origin:center}
+.app.closing{transform:scale(.95);opacity:0;pointer-events:none}
+.app.hiding{transform:translateY(200px) scale(.95);opacity:0;pointer-events:none}
+.app[data-max="1"]{border-color:transparent}
+
+/* 標題列 */
+.titlebar{flex:none;display:flex;align-items:center;gap:12px;height:52px;padding:0 10px 0 16px;background:var(--surface);border-bottom:1px solid var(--line);transition:background .35s}
+.drag{flex:1;display:flex;align-items:center;gap:10px;height:100%;min-width:0}
+.drag svg{flex:none}
+.name{font-weight:700;font-size:15px;white-space:nowrap}
+.ver:empty{display:none}
+.ver{padding:1px 9px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:500}
+.wc{display:flex;gap:2px}
+.wbtn{width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:background .2s,color .2s}
+.wbtn:hover{background:var(--hover);color:var(--text)}
+.wbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.wbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.app[data-max="1"] .i-max,.app:not([data-max="1"]) .i-restore{display:none}
+.seg{position:relative;display:inline-grid;grid-template-columns:repeat(3,1fr);padding:3px;border-radius:99px;background:var(--field);border:1px solid var(--line)}
+.seg i{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/3);border-radius:99px;background:var(--accent);transition:transform .35s var(--ease)}
+.seg button{position:relative;z-index:1;border:0;background:none;padding:2px 13px;border-radius:99px;font:inherit;font-size:12.5px;color:var(--muted);cursor:pointer;transition:color .25s}
+.seg button[aria-pressed=true]{color:var(--ink)}
+.rs{position:fixed;z-index:50}
+.app[data-max="1"]~.rs{display:none}
+.rs[data-e=n]{top:0;left:10px;right:10px;height:5px;cursor:ns-resize}.rs[data-e=s]{bottom:0;left:10px;right:10px;height:5px;cursor:ns-resize}
+.rs[data-e=w]{left:0;top:10px;bottom:10px;width:5px;cursor:ew-resize}.rs[data-e=e]{right:0;top:10px;bottom:10px;width:5px;cursor:ew-resize}
+.rs[data-e=nw]{top:0;left:0;width:10px;height:10px;cursor:nwse-resize}.rs[data-e=se]{bottom:0;right:0;width:10px;height:10px;cursor:nwse-resize}
+.rs[data-e=ne]{top:0;right:0;width:10px;height:10px;cursor:nesw-resize}.rs[data-e=sw]{bottom:0;left:0;width:10px;height:10px;cursor:nesw-resize}
+
+/* 內容 */
+.content{flex:1;display:flex;flex-direction:column;overflow:auto;padding:20px;zoom:var(--zoom,1)}
+.content.settle{animation:settle .32s var(--ease)}
+@keyframes settle{from{opacity:.4;transform:scale(.975)}}
+.grid{flex:1;display:grid;grid-template-columns:minmax(0,1fr) fit-content(440px);gap:18px;align-items:stretch;width:100%}
+main.card,aside.card{display:flex;flex-direction:column}
+/* 側欄寬度自適應：下限是原本的 clamp(300px,24vw,440px)；快速操作按鈕的文字放不下時（英文、日文標籤較長）自動加寬，上限 440px。
+   側欄其他子元素用 inline-size 隔離、不參與寬度計算，否則一長串說明文字會把側欄永遠撐到上限。 */
+aside.side{min-width:clamp(300px,24vw,440px)}
+.side>:not(.qa){contain:inline-size}
+.pin{margin-top:auto;padding-top:14px}.pin hr{margin-top:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:var(--shadow);transition:background .35s,border-color .35s}
+label.t{display:block;margin:0 0 6px;font-size:13px;color:var(--muted)}
+.field,select{width:100%;height:44px;padding:0 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--field);color:var(--text);font:inherit;outline:0;transition:border-color .2s,box-shadow .2s,opacity .3s,background .35s}
+.field:focus,select:focus-visible{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.field:disabled{opacity:.55}
+.field[readonly]{cursor:default;text-overflow:ellipsis}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(-45deg,transparent 50%,var(--muted) 50%);background-position:calc(100% - 20px) 19px,calc(100% - 15px) 19px;background-size:5px 5px;background-repeat:no-repeat;padding-right:36px;cursor:pointer}
+select:disabled{opacity:.4;cursor:not-allowed}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mt{margin-top:16px!important}
+.line{display:flex;gap:10px}
+.wrap{position:relative;flex:1;min-width:0}
+.wrap .field{padding-right:42px}
+.clr{position:absolute;right:7px;top:7px;width:30px;height:30px;border:0;border-radius:50%;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .2s,background .2s,visibility 0s .2s}
+.clr.on{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .2s,background .2s}.clr:hover{background:var(--hover);color:var(--text)}
+.clr svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.btn{height:44px;padding:0 18px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--text);font:inherit;font-weight:500;cursor:pointer;transition:transform .15s,background .25s,border-color .25s,opacity .25s,box-shadow .25s;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:focus-visible,.seg button:focus-visible,.chk input:focus-visible+span,.clr:focus-visible,.lnk:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--ink);box-shadow:0 8px 20px -8px var(--accent)}
+.btn.block{width:100%}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.actions .primary{min-width:130px}
+.actions .chk{padding:0 4px 0 8px}
+.lanes{display:flex;gap:4px;height:14px;margin:22px 0 10px;transition:gap .5s var(--ease)}
+.lanes.merged{gap:0}
+.lanes.merged .lane{border-radius:0;border-left-width:0;border-right-width:0}
+.lanes.merged .lane:first-child{border-radius:99px 0 0 99px;border-left-width:1px}
+.lanes.merged .lane:last-child{border-radius:0 99px 99px 0;border-right-width:1px}
+.lanes.merged .lane:only-child{border-radius:99px}
+.lanes.merged .lane+.lane{margin-left:-.5px}  /* 蓋住次像素縫隙 */
+.lanes.merged .lane b{border-radius:0}
+.lane{flex:1;border-radius:99px;background:var(--field);border:1px solid var(--line);overflow:hidden;animation:pop .4s var(--ease) both;transition:border-radius .5s var(--ease),border-width .5s var(--ease)}
+.lane b{display:block;height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .15s linear,border-radius .5s var(--ease)}
+@keyframes pop{from{transform:scaleY(.2);opacity:0}}
+.stat{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--muted)}
+.stat strong{font-size:26px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.logwrap{position:relative;flex:1;min-height:160px;margin-top:16px}  /* 日誌用絕對定位填滿這個容器，內容再多也不會撐開版面 */
+.log{position:absolute;inset:0;overflow:auto;padding:14px 16px;border-radius:14px;background:var(--field);border:1px solid var(--line);font:12.5px/1.75 ui-monospace,"Cascadia Mono",Consolas,monospace;color:var(--muted);transition:background .35s}
+.log div{animation:in .3s var(--ease) both;word-break:break-all}
+.log .ok{color:var(--ok)}.log .hl{color:var(--text)}
+@keyframes in{from{opacity:0;transform:translateX(-8px)}}
+.chk{position:relative;display:flex;align-items:center;gap:12px;padding:8px 0;cursor:pointer;font-size:14px}  /* 讓隱藏的 input 留在自己的 label 內，聚焦時只會捲動 .content，不會把整頁（含標題列）推走 */
+.chk input{position:absolute;opacity:0}
+.chk span{flex:none;width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);background:var(--field);display:grid;place-items:center;transition:background .25s,border-color .25s,transform .2s}
+.chk span::after{content:"";width:5px;height:10px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);margin-top:-2px;transition:transform .3s var(--ease)}
+.chk input:checked+span{background:var(--accent);border-color:var(--accent)}
+.chk input:checked+span::after{transform:rotate(45deg) scale(1)}
+.chk:active span{transform:scale(.88)}
+.side h2{margin:0 0 10px;font-size:15px;font-weight:700}
+.side hr{border:0;border-top:1px solid var(--line);margin:14px 0}
+.hint{margin:8px 0 0;font-size:12px;color:var(--muted);line-height:1.6}
+.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,24px);padding:12px 22px;border-radius:99px;background:var(--text);color:var(--bg);font-weight:500;opacity:0;pointer-events:none;transition:.4s var(--ease);z-index:90}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.note{margin:20px 0 0;text-align:center;font-size:12px;color:var(--muted)}.note[hidden]{display:none}
+
+/* 彈窗 */
+.ov{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;background:var(--scrim);opacity:0;pointer-events:none;visibility:hidden;transition:opacity .25s,visibility 0s .25s}
+.ov.show{opacity:1;pointer-events:auto;visibility:visible;transition:opacity .25s}
+.dlg{position:relative;width:min(460px,100%);max-height:90vh;overflow:auto;padding:28px 28px 24px;border-radius:24px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);transform:translateY(12px) scale(.96);transition:transform .35s var(--ease)}
+.ov.show .dlg{transform:none}
+.dlg h3{margin:0 40px 10px 0;font-size:17px}
+.dlg p{margin:0;color:var(--muted);white-space:pre-line;font-size:14px;line-height:1.7;user-select:text}
+.dlg .x{position:absolute;right:14px;top:14px}
+.dlg .field{margin-top:16px}
+.mbtns{display:flex;flex-direction:column;gap:8px;margin-top:20px}
+.dlg.wide{width:min(880px,100%)}
+.dlg .sub{margin-top:10px;font-size:12px}
+.code{margin:14px 0 0;padding:10px 12px;border-radius:10px;background:var(--field);border:1px solid var(--line);font:12.5px/1.6 ui-monospace,"Cascadia Mono",Consolas,monospace;white-space:pre-wrap;word-break:break-all;user-select:text}
+.code[hidden],.dlg p[hidden]{display:none}
+.hist{display:flex;flex-direction:column;margin-top:14px;max-height:52vh;overflow:auto}
+.hrow{display:flex;align-items:baseline;gap:10px;padding:7px 8px;border-radius:10px;font-size:13px;transition:background .2s}
+.hrow:hover{background:var(--hover)}
+.hrow .tm{flex:none;color:var(--muted);font:12px ui-monospace,Consolas,monospace}
+.hrow .st{flex:none;font-weight:500}.hrow .st.ok{color:var(--ok)}.hrow .st.no{color:var(--bad)}
+.hrow .mt2{flex:none;color:var(--muted)}
+.lnk{flex:1;min-width:0;border:0;background:none;padding:0;color:var(--accent);font:inherit;text-align:left;text-decoration:underline;text-underline-offset:3px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.credit{margin-top:14px;font-size:12px;color:var(--muted)}
+.btn.danger{color:var(--bad);border-color:var(--line)}.btn.danger:hover:not(:disabled){border-color:var(--bad)}
+.qa{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.qa .btn{height:40px;padding:0 10px;font-size:14px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}  /* 單行；只有頂到 440px 上限才會出現省略號 */
+.mbtns:empty{display:none}
+.mbtns .btn{height:auto;min-height:44px;padding:10px 18px;white-space:pre-line;line-height:1.4}
+
+@media (max-width:860px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}aside.side{min-width:0}}
+/* 矮視窗（高度 780px 以下）：縮小間距與控制項高度、整體縮小 15%，減少需要捲動的距離；視窗夠高時完全不受影響。
+   放大（--zoom 大於 1）只會在視窗高於 1044px 時出現，不會和這裡的縮小同時發生 */
+@media (max-height:780px){
+  .content{padding:12px;zoom:.85}  /* 小視窗整體再縮小 15%（標題列不縮放） */
+  .card{padding:16px;border-radius:18px}
+  .field,select,.btn{height:38px}
+  .chk{padding:3px 0}
+  .side h2{margin-bottom:6px}
+  .side hr{margin:8px 0}
+  .pin{padding-top:8px}
+  .hint{margin-top:4px}
+  .lanes{margin:14px 0 8px}
+  .logwrap{min-height:110px;margin-top:10px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

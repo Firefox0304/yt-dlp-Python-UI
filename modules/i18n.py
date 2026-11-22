@@ -1,4 +1,5 @@
-# modules/i18n.py — 多語言：文字放在 locales/<語言代號>.json，程式用 t("代號") 取字。
+# modules/i18n.py — 多語言：每個語言一個資料夾 locales/<語言代號>/，裡面所有 .json 檔合併成一份文字表
+# （strings.json 介面文字、errors.json 錯誤訊息 err.*、logs.json 日誌訊息 log.*），程式用 t("代號") 取字。
 import json
 import locale
 import os
@@ -25,16 +26,23 @@ def init(base_dir):
 
 
 def _load(code):
+    """讀 locales/<code>/ 底下所有 .json 並合併；缺資料夾或壞檔只記警告，其餘照常。"""
     if code not in _cache:
         data = {}
-        path = os.path.join(_locales_dir, code + ".json")
+        folder = os.path.join(_locales_dir, code)
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                loaded = json.load(f)
-            if isinstance(loaded, dict):
-                data = {str(k): str(v) for k, v in loaded.items()}
-        except (OSError, ValueError) as exc:
+            names = sorted(n for n in os.listdir(folder) if n.lower().endswith(".json"))
+        except OSError as exc:
             LOG.warning("Failed loading locale %s: %s", code, exc)
+            names = []
+        for name in names:
+            try:
+                with open(os.path.join(folder, name), "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    data.update({str(k): str(v) for k, v in loaded.items()})
+            except (OSError, ValueError) as exc:
+                LOG.warning("Failed loading locale %s/%s: %s", code, name, exc)
         _cache[code] = data
     return _cache[code]
 

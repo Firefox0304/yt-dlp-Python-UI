@@ -60,6 +60,43 @@ def is_bilibili_url(url):
     return any(host == h or host.endswith("." + h) for h in _BILIBILI_HOSTS)
 
 
+# 「自動開啟」絕對不該碰的檔案類型：可執行檔、腳本、捷徑、安裝檔、含巨集的 Office 檔、網頁等。
+# yt-dlp 遇到直連檔案時會保留原副檔名，所以下載結果不一定是影音檔，不能直接丟給 os.startfile。
+UNSAFE_OPEN_EXTENSIONS = frozenset(
+    ".exe .com .scr .pif .bat .cmd .msi .msp .msc .cpl .dll .sys .drv .ocx .vxd "
+    ".lnk .url .scf .library-ms .searchconnector-ms .appref-ms .application .gadget .manifest "
+    ".appx .appxbundle .msix .msixbundle .jar .jnlp .hta .inf .ins .isp .job .reg .rgs .sct .shb .shs "
+    ".ps1 .ps1xml .ps2 .ps2xml .psc1 .psc2 .psd1 .psm1 .vb .vbe .vbs .wsc .wsf .wsh .ws .js .jse .mjs "
+    ".py .pyw .pyz .pyc .sh .bash .pl .rb .chm .xll "
+    ".docm .dotm .xlsm .xltm .xlam .pptm .potm .ppam .sldm "
+    ".html .htm .xhtml .mht .mhtml .svg".split())
+
+
+def is_safe_to_open(path):
+    """檔案可不可以交給系統預設程式開啟（只看檔名，不碰檔案內容）。
+
+    擋掉 UNSAFE_OPEN_EXTENSIONS；Windows 會忽略檔名尾端的點與空白（``a.exe.`` 其實是 ``a.exe``），
+    而 ``a.txt:b.exe`` 是 NTFS 替代資料流，兩種都一律視為不安全。沒有副檔名的檔案不算危險。
+    """
+    name = os.path.basename(str(path or "").strip().replace("\\", "/").rstrip("/"))
+    if not name or ":" in name:
+        return False
+    name = name.rstrip(". ")
+    return os.path.splitext(name)[1].lower() not in UNSAFE_OPEN_EXTENSIONS
+
+
+def is_safe_web_url(url):
+    """只接受 http／https 且有主機名稱的網址；含空白或控制字元的一律拒絕。"""
+    text = str(url or "").strip()
+    if not text or any(ch.isspace() or ord(ch) < 32 or ord(ch) == 127 for ch in text):
+        return False
+    try:
+        parts = urlparse(text)
+        return parts.scheme in ("http", "https") and bool(parts.hostname)
+    except ValueError:
+        return False
+
+
 def open_path(path):
     """用系統預設程式開啟檔案或資料夾。失敗時回傳 False。"""
     try:
@@ -71,6 +108,35 @@ def open_path(path):
             subprocess.Popen(["xdg-open", path])
         return True
     except Exception:
+        return False
+
+
+# 找「最新的下載檔」時要略過的副檔名：下載中的暫存檔、字幕、縮圖
+NON_MEDIA_SUFFIXES = (".part", ".ytdl", ".vtt", ".srt", ".jpg", ".png", ".webp")
+
+
+def latest_media_file(folder):
+    """資料夾（不含子資料夾）中最新修改的媒體檔路徑；沒有或讀不到回傳 None。"""
+    try:
+        paths = [os.path.join(folder, name) for name in os.listdir(folder)]
+        paths = [p for p in paths if os.path.isfile(p) and not p.lower().endswith(NON_MEDIA_SUFFIXES)]
+        return max(paths, key=os.path.getmtime) if paths else None
+    except OSError:
+        return None
+
+
+def reveal_in_file_manager(path):
+    """在檔案總管中「選取」這個檔案（只是選取，不會執行它）。失敗時回傳 False。"""
+    path = os.path.normpath(str(path))
+    try:
+        if os.name == "nt":
+            subprocess.Popen(["explorer", "/select,", path])  # explorer 不論成功與否結束代碼都是 1，所以不檢查
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", path])
+        else:
+            return open_path(os.path.dirname(path))
+        return True
+    except Exception:  # noqa: BLE001
         return False
 
 
