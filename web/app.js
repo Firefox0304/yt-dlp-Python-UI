@@ -67,19 +67,19 @@ function setSel(id,v){const s=$(id);if(![...s.options].some(o=>o.value===v)){con
 function syncClear(){$("urlclr").classList.toggle("on",!!$("url").value&&!running);$("ckclr").classList.toggle("on",!!cookieFile&&!running)}
 
 /* ---------- 彈窗 ---------- */
-let modalDone=null,modalOpener=null;
+let modalDone=null,modalOpener=null,modalLocked=false;  // modalLocked：安裝進行中，Esc、點背景、關閉鈕都不能關掉彈窗
 function closeModal(res){
   if(!modalDone)return;
-  const done=modalDone;modalDone=null;
+  const done=modalDone;modalDone=null;modalLocked=false;$("mx").hidden=false;
   $("ov").classList.remove("show");$("ov").setAttribute("aria-hidden","true");
   $("app").inert=false;  // 背景恢復可操作，焦點回到開啟彈窗前的位置
   if(modalOpener&&modalOpener.isConnected)modalOpener.focus();
   modalOpener=null;
   done(res);
 }
-function askModal({title,body="",code="",note="",node=null,wide=false,input=null,buttons=[]}){
+function askModal({title,body="",code="",note="",node=null,wide=false,input=null,locked=false,buttons=[]}){
   return new Promise(resolve=>{
-    modalDone=resolve;
+    modalDone=resolve;modalLocked=locked;$("mx").hidden=locked;
     modalOpener=document.activeElement&&document.activeElement!==document.body?document.activeElement:null;
     $("dlg").classList.toggle("wide",wide);
     $("mt").textContent=title;$("mb").textContent=body;$("mb").hidden=!body;
@@ -93,7 +93,7 @@ function askModal({title,body="",code="",note="",node=null,wide=false,input=null
       box.append(e)});
     $("ov").classList.add("show");$("ov").setAttribute("aria-hidden","false");
     $("app").inert=true;  // 彈窗開著時 Tab 不能跑到背景的控制項
-    setTimeout(()=>(box.querySelector(".primary")||(input?mi:$("mx"))).focus(),50);
+    setTimeout(()=>(box.querySelector(".primary")||(input?mi:locked?$("dlg"):$("mx"))).focus(),50);
   });
 }
 async function copyText(t){
@@ -102,9 +102,10 @@ async function copyText(t){
   let ok=false;try{ok=document.execCommand("copy")}catch(_){}a.remove();return ok;
 }
 const copyButton=(label,text)=>({label,keep:async e=>{const ok=await copyText(text);e.textContent=ok?t("copy.done"):t("copy.fail");setTimeout(()=>e.textContent=label,2000)}});
-$("mx").onclick=()=>closeModal({id:"cancel"});
-$("ov").onmousedown=e=>{if(e.target===$("ov"))closeModal({id:"cancel"})};
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal({id:"cancel"})});
+const dismiss=()=>{if(!modalLocked)closeModal({id:"cancel"})};
+$("mx").onclick=dismiss;
+$("ov").onmousedown=e=>{if(e.target===$("ov"))dismiss()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")dismiss()});
 // 勾選框原生只吃空白鍵；Enter 也能切換（長按連發不算，避免一直來回切）
 document.addEventListener("keydown",e=>{
   if(e.key==="Enter"&&!e.repeat&&e.target.matches&&e.target.matches('.chk input[type="checkbox"]')){e.preventDefault();e.target.click()}
@@ -168,6 +169,10 @@ window.__py=e=>{
   else if(e.type==="done")onDone(e);
   else if(e.type==="diag")onDiag(e);
   else if(e.type==="update_done")onUpdateDone(e);
+  else if(e.type==="install_prompt")showPrompt(e.items);
+  else if(e.type==="install_progress")onInstallProgress(e);
+  else if(e.type==="install_done")onInstallDone();
+  else if(e.type==="install_fail")onInstallFail(e);
 };
 async function onDone(e){
   $("speed").textContent="—";
@@ -301,9 +306,66 @@ async function onUpdateDone(e){
   if(e.python_url)buttons.push({id:"py",label:t("python.open")});
   if(e.command)buttons.push(copyButton(e.command.label,e.command.text));
   if(e.ffmpeg_url)buttons.push({id:"ff",label:t("ffmpeg.open")});
-  const r=await askModal({title:t("quick.update"),body:e.text,buttons,
-    code:e.command?e.command.text:"",note:e.command?t("upd.note",{title:e.command.title,note:e.command.note}):""});
+  const code=e.command?e.command.text:"",note=e.command?t("upd.note",{title:e.command.title,note:e.command.note}):"";
+  if(e.items&&e.items.length){await askInstall(e.items,{body:e.text,buttons,code,note});return}  // 有新版：接上同一組安裝彈窗
+  const r=await askModal({title:t("quick.update"),body:e.text,buttons,code,note});
   if(r.id==="py")api().open_python_page();else if(r.id==="ff")api().open_ffmpeg_page();
+}
+
+/* ---------- 啟動檢查與自動安裝：缺少套件確認／有更新確認／安裝中（彈窗樣式沿用 askModal） ---------- */
+const promptSeen=new Set();
+let inst=null,dotT=null;
+const waitFree=fn=>{if(ready&&!modalDone)fn();else setTimeout(()=>waitFree(fn),300)};  // 等語言載入完成、且沒有別的彈窗開著
+function showPrompt(items){
+  const key=JSON.stringify(items||[]);
+  if(!items||!items.length||promptSeen.has(key))return;
+  promptSeen.add(key);
+  waitFree(()=>askInstall(items));
+}
+async function askInstall(items,extra={}){
+  const missing=items.some(i=>i.action==="install");
+  const list=document.createElement("ul");list.className="chklist";
+  items.forEach(i=>{const li=document.createElement("li");
+    li.textContent=t("check.item."+i.id)+"（"+t(i.action==="upgrade"?"check.action.upgrade":"check.action.install")+"）";list.append(li)});
+  const body=(extra.body?extra.body+"\n\n":"")+t(missing?"check.missing.body":"check.update.body");
+  const r=await askModal({title:t(missing?"check.missing.title":"check.update.title"),body,node:list,code:extra.code||"",note:extra.note||"",
+    buttons:[{id:"ok",label:t("check.confirm"),primary:true},...(extra.buttons||[]),{id:"later",label:t("check.later")}]});
+  if(r.id==="py")api().open_python_page();
+  else if(r.id==="ff")api().open_ffmpeg_page();
+  if(r.id!=="ok")return;
+  showInstalling();  // 先開「安裝中」再通知 Python 開始，這樣最早的進度與失敗事件都接得到
+  const res=await api().confirm_install(items);
+  if(!res.ok){stopInstalling();closeModal({id:"err"});log(res.error);toast(res.error)}
+}
+function showInstalling(){
+  const wrap=document.createElement("div");wrap.className="inst";
+  const name=document.createElement("p"),bar=document.createElement("div"),fill=document.createElement("i"),pct=document.createElement("p");
+  name.className="inst-name";bar.className="inst-bar";pct.className="sub";bar.append(fill);wrap.append(name,bar,pct);
+  inst={name,fill,pct,label:t("check.installing.title"),dots:1};
+  clearInterval(dotT);dotT=setInterval(()=>{if(inst){inst.dots=inst.dots%3+1;renderInst()}},450);  // . → .. → ... 循環
+  askModal({title:t("check.installing.title"),node:wrap,locked:true,buttons:[]});
+  renderInst();
+}
+function renderInst(){if(inst)inst.name.textContent=inst.label+".".repeat(inst.dots)}
+function onInstallProgress(e){
+  if(!inst)return;
+  const name=t("check.item."+e.item);
+  inst.label=e.action==="upgrade"?t("check.installing.upgrade",{name}):t("check.installing.install",{name});
+  inst.fill.style.width=Math.min(100,e.pct)+"%";
+  inst.pct.textContent=t("check.installing.step",{index:e.index,total:e.total})+"　"+Math.round(e.pct)+"%";
+  renderInst();
+}
+function stopInstalling(){clearInterval(dotT);dotT=null;inst=null}
+function onInstallDone(){
+  if(!inst)return;
+  clearInterval(dotT);dotT=null;inst.fill.style.width="100%";inst.name.textContent=t("check.installing.done");inst.pct.textContent="";
+}
+async function onInstallFail(e){
+  stopInstalling();closeModal({id:"fail"});
+  const pages=(e.pages||[]).map(id=>({id:"page:"+id,label:t("check.open_page",{name:t("check.item."+id)}),primary:true}));
+  const r=await askModal({title:t("check.fail.title"),body:t("check.fail.body",{name:e.item?t("check.item."+e.item):"",message:e.message}),
+    buttons:[...pages,{id:"close",label:t("check.close")}]});
+  if(r.id&&r.id.startsWith("page:"))api().open_download_page(r.id.slice(5));
 }
 const exportButton=text=>({label:t("diag.export"),keep:async e=>{
   e.disabled=true;
@@ -343,6 +405,7 @@ async function init(){
   for(const k in FIELDS){const [id,t]=FIELDS[k],e=$(id);
     if(t==="c")e.checked=!!s[k];else if(e.tagName==="SELECT")setSel(id,String(s[k]));else e.value=s[k]}
   $("frag").disabled=!s.boost;buildLanes();setMode(s.appearance,false);ready=true;syncClear();root.classList.remove("pending");
+  try{const pr=await api().get_install_prompt();if(pr)showPrompt(pr.items)}catch(_){}  // 啟動檢查比網頁先做完時補領（同一組項目只會顯示一次）
 }
 async function loadPreviewLocale(){  // 瀏覽器預覽模式沒有 Python；能讀到 locales 就用繁中，讀不到就維持畫面上寫死的繁中
   try{  // 新增語言檔案時，這份清單要跟 locales/zh-TW/ 底下的檔名同步

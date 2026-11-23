@@ -149,6 +149,13 @@ select:disabled{opacity:.4;cursor:not-allowed}
 .btn.danger{color:var(--bad);border-color:var(--line)}.btn.danger:hover:not(:disabled){border-color:var(--bad)}
 .qa{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .qa .btn{height:40px;padding:0 10px;font-size:14px;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}  /* 單行；只有頂到 440px 上限才會出現省略號 */
+.dlg .x[hidden]{display:none}
+.chklist{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.chklist li{padding:10px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent);font-size:14px;font-weight:500}
+.inst{margin-top:6px}
+.inst .inst-name{min-height:1.7em;color:var(--text)}
+.inst-bar{height:8px;margin-top:14px;border-radius:99px;background:var(--accent-soft);overflow:hidden}
+.inst-bar i{display:block;height:100%;width:0;border-radius:99px;background:var(--accent);transition:width .3s var(--ease)}
 .mbtns:empty{display:none}
 .mbtns .btn{height:auto;min-height:44px;padding:10px 18px;white-space:pre-line;line-height:1.4}
 
