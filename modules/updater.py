@@ -1,5 +1,7 @@
 # modules/updater.py
-"""版本檢查：yt-dlp（可自動更新）、Python 與 FFmpeg（只顯示版本，不更新）。
+"""版本檢查：yt-dlp、Python、FFmpeg、Deno。
+
+安裝與更新由 modules/check.py 的彈窗流程負責；這裡只負責「查」。Python 只顯示版本與建議。
 
 不依賴 pip 的實驗性指令，也不需要 requests。
 """
@@ -7,6 +9,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -24,6 +27,52 @@ def fetch_latest_version(timeout=15):
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.load(resp)
     return str(data["info"]["version"])
+
+
+EJS_PACKAGE = "yt-dlp-ejs"
+EJS_PYPI_URL = "https://pypi.org/pypi/yt-dlp-ejs/json"
+
+
+def fetch_latest_ejs(timeout=15):
+    req = urllib.request.Request(EJS_PYPI_URL, headers={"User-Agent": "yt-dlp-python-UI"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.load(resp)
+    return str(data["info"]["version"])
+
+
+def ejs_applies(eng):
+    """yt-dlp-ejs 是 pip 套件，只有 yt-dlp 走 Python 模組時才需要；獨立的 yt-dlp.exe 已內含，不檢查。"""
+    return eng is not None and eng.kind == "module"
+
+
+def get_ejs_version(python, run=subprocess.run):
+    """用該 Python 讀 yt-dlp-ejs 的已安裝版本；沒裝或讀不到回傳 None。"""
+    code = "import importlib.metadata as m;print(m.version('yt-dlp-ejs'))"
+    try:
+        proc = run([python, "-c", code], capture_output=True, text=True, timeout=20,
+                   env=utils.child_env(), **utils.hidden_subprocess_kwargs())
+    except (OSError, subprocess.SubprocessError):
+        return None
+    out = (proc.stdout or "").strip()
+    return out if proc.returncode == 0 and out else None
+
+
+def check_ejs(eng, check_upgrade=True, fetch=None, get_version=get_ejs_version):
+    """回傳 {"status": "missing"} 或 {"status": "ok"|"update_available", "current", "latest"?}。
+    查不到最新版（離線）時只回報目前版本。"""
+    current = get_version(eng.command[0])
+    if not current:
+        return {"status": "missing"}
+    result = {"status": "ok", "current": current}
+    if check_upgrade:
+        try:
+            latest = (fetch or fetch_latest_ejs)()
+        except Exception:  # noqa: BLE001
+            return result
+        result["latest"] = latest
+        if is_newer(latest, current):
+            result["status"] = "update_available"
+    return result
 
 
 def _version_tuple(version):
@@ -73,6 +122,26 @@ def check_and_update(eng, log=lambda text: None):
         detail = (proc.stderr.strip() or proc.stdout.strip() or t("upd.msg.update_fail"))
         raise RuntimeError(detail[-600:])
     return {"status": "updated", "current": current, "latest": latest}
+
+
+def ytdlp_status(eng):
+    """只查 yt-dlp 有沒有新版，不安裝。回傳 status = up_to_date | update_available；失敗時丟出 RuntimeError。"""
+    if eng is None:
+        raise RuntimeError(t("upd.msg.no_engine"))
+    current = engine_mod.get_version(eng)
+    if not current:
+        raise RuntimeError(t("upd.msg.no_version"))
+    try:
+        latest = fetch_latest_version()
+    except Exception as exc:
+        raise RuntimeError(t("upd.msg.query_fail", error=exc)) from exc
+    status = "update_available" if is_newer(latest, current) else "up_to_date"
+    return {"status": status, "current": current, "latest": latest}
+
+
+def check_startup(eng):
+    """啟動時使用的檢查入口：只查 yt-dlp 有沒有新版（不安裝），不查 Python、FFmpeg、Deno。"""
+    return ytdlp_status(eng)
 
 
 # --------------------------------------------------------------------------- #
@@ -187,16 +256,90 @@ def check_ffmpeg(base_dir):
             "source": "program" if in_program_dir else "path"}
 
 
-def check_all(eng, log=lambda text: None, base_dir=None):
-    """一次檢查 yt-dlp（有新版就更新）、Python 版本與 FFmpeg 版本；各自回報成功或錯誤，互不影響。
+# --------------------------------------------------------------------------- #
+# FFmpeg、Deno 的 winget 更新檢查
+# --------------------------------------------------------------------------- #
 
-    FFmpeg 只顯示版本與位置，不會下載或更新（base_dir 為 None 時略過 FFmpeg）。
+WINGET_IDS = {"ffmpeg": "Gyan.FFmpeg", "deno": "DenoLand.Deno"}
+DENO_DOWNLOADS_URL = "https://deno.com/"
+_DENO_VERSION_RE = re.compile(r"^deno (\S+)", re.M)
+
+
+def winget_upgrade_list_command(pkg_id, winget="winget"):
+    """列出「有新版可升級」的套件（只列出，不會安裝）。"""
+    return [winget, "list", "--upgrade-available", "--id", pkg_id, "-e", "--accept-source-agreements"]
+
+
+def output_lists_package(output, pkg_id):
+    """winget 的輸出會隨系統語言改變，所以不解析文字，只看套件 ID 有沒有出現在結果表格裡。"""
+    return pkg_id.lower() in str(output or "").lower()
+
+
+def winget_has_upgrade(pkg_id, run=subprocess.run, winget=None, timeout=60):
+    """winget 認得這個套件而且有新版時回傳 True；winget 不可用、不是 winget 裝的、或查詢失敗都回傳 False。"""
+    winget = winget or shutil.which("winget")
+    if not winget:
+        return False
+    try:
+        proc = run(winget_upgrade_list_command(pkg_id, winget), capture_output=True, text=True,
+                   encoding="utf-8", errors="replace", timeout=timeout, **utils.hidden_subprocess_kwargs())
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return output_lists_package(proc.stdout, pkg_id)
+
+
+def parse_deno_version(text):
+    match = _DENO_VERSION_RE.search(text or "")
+    return match.group(1) if match else None
+
+
+def find_deno(base_dir):
+    found = shutil.which("deno")
+    if found:
+        return found
+    local = os.path.join(base_dir, "deno.exe")
+    return local if os.path.isfile(local) else None
+
+
+def check_deno(base_dir, check_upgrade=False, winget_ok=False):
+    """找出 Deno 並讀版本。回傳 {"status": "missing"} 或
+    {"status": "ok", "version", "path", "source": "program" | "path", "update": bool}。
+    放在程式資料夾的 deno.exe 不是 winget 裝的，不檢查升級。"""
+    path = find_deno(base_dir)
+    if not path:
+        return {"status": "missing"}
+    in_program_dir = os.path.normcase(os.path.dirname(path)) == os.path.normcase(os.path.abspath(base_dir))
+    version = None
+    try:
+        proc = subprocess.run([path, "--version"], capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=15, env=utils.child_env(), **utils.hidden_subprocess_kwargs())
+        version = parse_deno_version(proc.stdout) if proc.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        pass
+    update = bool(check_upgrade and winget_ok and not in_program_dir and winget_has_upgrade(WINGET_IDS["deno"]))
+    return {"status": "ok", "version": version, "path": path,
+            "source": "program" if in_program_dir else "path", "update": update}
+
+
+def check_all(eng, log=lambda text: None, base_dir=None, auto_update=True):
+    """一次檢查 yt-dlp、Python、FFmpeg、Deno；各自回報成功或錯誤，互不影響。
+
+    auto_update=True（舊行為）：yt-dlp 有新版就直接更新。
+    auto_update=False（v7.0 的「檢查更新」按鈕）：只查不裝，yt-dlp、FFmpeg、Deno 有新版時
+    在結果裡標示（status = update_available／update = True），由 modules/check.py 的彈窗讓使用者確認。
+    FFmpeg 與 Deno 放在程式資料夾時不是 winget 裝的，只顯示版本。Python 的檢查與顯示維持原樣。
+    base_dir 為 None 時略過 FFmpeg 與 Deno。
     """
     results = {}
     try:
-        results["ytdlp"] = check_and_update(eng, log)
+        results["ytdlp"] = check_and_update(eng, log) if auto_update else ytdlp_status(eng)
     except Exception as exc:  # noqa: BLE001
         results["ytdlp"] = {"status": "error", "message": str(exc)}
+    if ejs_applies(eng):
+        try:
+            results["ejs"] = check_ejs(eng, check_upgrade=not auto_update)
+        except Exception as exc:  # noqa: BLE001
+            results["ejs"] = {"status": "error", "message": str(exc)}
     log(t("upd.log.checking_python"))
     try:
         results["python"] = check_python()
@@ -205,10 +348,20 @@ def check_all(eng, log=lambda text: None, base_dir=None):
             results["python"]["winget_command"] = command
     except Exception as exc:  # noqa: BLE001
         results["python"] = {"status": "error", "message": str(exc)}
-    if base_dir is not None:
-        log(t("upd.log.checking_ffmpeg"))
-        try:
-            results["ffmpeg"] = check_ffmpeg(base_dir)
-        except Exception as exc:  # noqa: BLE001
-            results["ffmpeg"] = {"status": "error", "message": str(exc)}
+    if base_dir is None:
+        return results
+    winget_ok = (not auto_update) and utils.winget_available()
+    log(t("upd.log.checking_ffmpeg"))
+    try:
+        results["ffmpeg"] = check_ffmpeg(base_dir)
+        ff = results["ffmpeg"]
+        ff["update"] = bool(winget_ok and ff.get("status") == "ok" and ff.get("source") == "path"
+                            and winget_has_upgrade(WINGET_IDS["ffmpeg"]))
+    except Exception as exc:  # noqa: BLE001
+        results["ffmpeg"] = {"status": "error", "message": str(exc)}
+    log(t("upd.log.checking_deno"))
+    try:
+        results["deno"] = check_deno(base_dir, check_upgrade=not auto_update, winget_ok=winget_ok)
+    except Exception as exc:  # noqa: BLE001
+        results["deno"] = {"status": "error", "message": str(exc)}
     return results

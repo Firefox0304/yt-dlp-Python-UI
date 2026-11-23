@@ -1,3 +1,25 @@
+# v7.0.0
+
+## 新增：啟動檢查與自動安裝
+- 視窗顯示後，背景檢查缺少的核心程式（Python、yt-dlp、yt-dlp-ejs、FFmpeg、Deno）與 yt-dlp 新版；有項目時跳出**一個**彈窗列出全部，按「確認」才安裝，「稍後再說」則不動作。沒有缺少也沒有更新時不跳任何彈窗。
+- 安裝順序：Python（winget）→ yt-dlp（pip）→ yt-dlp-ejs（pip）→ FFmpeg（winget）→ Deno（winget）；winget 一律加 `--accept-source-agreements --accept-package-agreements`。
+- 安裝中顯示「正在安裝 xxx.／..／...」循環動態文字與進度條（依 pip／winget 的輸出階段推進）；安裝中彈窗不能關閉。
+- 全部完成後自動重新啟動（重新從登錄檔讀取系統＋使用者 PATH，新裝的程式立刻找得到）；任何一項失敗就顯示原因、不重啟。winget 不可用時改提供下載頁按鈕。
+- 判斷「找不到 Python」時會實際執行 `python --version`，並排除 Microsoft Store 的 WindowsApps 假捷徑。
+- 「檢查更新」按鈕：yt-dlp 改為只查不裝，並新增 Deno；yt-dlp、FFmpeg、Deno 有新版時接上同一組安裝彈窗。FFmpeg、Deno 放在程式資料夾時不是 winget 裝的，只顯示版本。啟動時只額外檢查 yt-dlp 新版，不查 Python。
+- yt-dlp-ejs 是獨立項目（缺少、有新版各自判斷）；只有 yt-dlp 走 Python 模組（pip）時才處理，獨立的 yt-dlp.exe 不檢查。「檢查更新」的摘要也會顯示它的版本。
+- 新增 `modules/check.py`；四種語言新增 `check.*` 等文字。
+
+## 變更
+- 移除 `webui._ensure_ytdlp` 啟動時偷偷 pip 安裝 yt-dlp 的舊行為。
+- `.pyw` 啟動器只保留 pywebview 缺失時的自動安裝與 MessageBoxW 提示。
+- exe 版找 Python 時改用 `utils.find_real_python()`（排除假捷徑）。
+- 版本號升為 7.0.0。
+
+## 已知限制
+- 需在 Windows 實機測試彈窗、winget 安裝與重新啟動（開發環境無法驗證）。
+- 單一 exe 版以 PATH 上的 Python 安裝 yt-dlp；exe 版尋找 yt-dlp 的順序（engine.py）未更動。
+
 # v6.6
 
 ## 修正

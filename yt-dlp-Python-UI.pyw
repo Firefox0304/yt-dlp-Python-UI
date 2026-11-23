@@ -1,7 +1,8 @@
-"""yt-dlp-python-UI v6.0 啟動器（網頁介面版，僅支援 Windows）。
+"""yt-dlp-python-UI 啟動器（網頁介面版，僅支援 Windows）。
 
-介面是 web/ 內的 HTML；後端仍是 modules/ 內的 Python。這個檔案只負責：
-找到程式資料夾、缺少 pywebview 時自動安裝，然後啟動 modules.webui。
+介面是 web/ 內的 HTML；後端仍是 Python 的 modules/。這個檔案只負責：
+找到程式資料夾、pywebview 缺失（連視窗都建不出來）時自動 pip 安裝與 MessageBoxW 提示，然後啟動 modules.webui。
+其餘缺少的程式（Python、yt-dlp、FFmpeg、Deno）與更新，由視窗顯示後的 modules/check.py 彈窗流程處理。
 """
 import os
 import subprocess
