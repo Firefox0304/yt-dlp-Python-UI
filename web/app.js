@@ -169,7 +169,8 @@ window.__py=e=>{
   else if(e.type==="done")onDone(e);
   else if(e.type==="diag")onDiag(e);
   else if(e.type==="update_done")onUpdateDone(e);
-  else if(e.type==="install_prompt")showPrompt(e.items);
+  else if(e.type==="ui_beta")$("beta").hidden=!e.beta;  // 本地版本比 GitHub 最新發佈的高：頭標題顯示橘色 Beta 膠囊
+  else if(e.type==="install_prompt")showPrompt(e.items,e.ui);
   else if(e.type==="install_progress")onInstallProgress(e);
   else if(e.type==="install_done")onInstallDone();
   else if(e.type==="install_fail")onInstallFail(e);
@@ -306,21 +307,31 @@ async function onUpdateDone(e){
   if(e.python_url)buttons.push({id:"py",label:t("python.open")});
   if(e.command)buttons.push(copyButton(e.command.label,e.command.text));
   if(e.ffmpeg_url)buttons.push({id:"ff",label:t("ffmpeg.open")});
+  if(e.project_url)buttons.push(projButton());
   const code=e.command?e.command.text:"",note=e.command?t("upd.note",{title:e.command.title,note:e.command.note}):"";
   if(e.items&&e.items.length){await askInstall(e.items,{body:e.text,buttons,code,note});return}  // 有新版：接上同一組安裝彈窗
   const r=await askModal({title:t("quick.update"),body:e.text,buttons,code,note});
-  if(r.id==="py")api().open_python_page();else if(r.id==="ff")api().open_ffmpeg_page();
+  if(r.id==="py")api().open_python_page();else if(r.id==="ff")api().open_ffmpeg_page();else if(r.id==="proj")api().open_project_page();
 }
 
 /* ---------- 啟動檢查與自動安裝：缺少套件確認／有更新確認／安裝中（彈窗樣式沿用 askModal） ---------- */
 const promptSeen=new Set();
 let inst=null,dotT=null;
 const waitFree=fn=>{if(ready&&!modalDone)fn();else setTimeout(()=>waitFree(fn),300)};  // 等語言載入完成、且沒有別的彈窗開著
-function showPrompt(items){
-  const key=JSON.stringify(items||[]);
-  if(!items||!items.length||promptSeen.has(key))return;
+const projButton=()=>({id:"proj",label:t("update.ui.button")});  // UI 有新版：開專案庫
+const uiLine=ui=>t("update.ui.available",{current:ui.current,latest:ui.latest});
+function showPrompt(items,ui){
+  items=items||[];
+  if(!items.length&&!ui)return;
+  const key=JSON.stringify([items,ui||null]);
+  if(promptSeen.has(key))return;
   promptSeen.add(key);
-  waitFree(()=>askInstall(items));
+  waitFree(()=>items.length?askInstall(items,ui?{body:uiLine(ui),buttons:[projButton()]}:{}):askUiUpdate(ui));
+}
+async function askUiUpdate(ui){  // 只有 UI 有新版（沒有要安裝的項目）
+  const r=await askModal({title:t("check.ui.title"),body:uiLine(ui),
+    buttons:[{...projButton(),primary:true},{id:"later",label:t("check.later")}]});
+  if(r.id==="proj")api().open_project_page();
 }
 async function askInstall(items,extra={}){
   const missing=items.some(i=>i.action==="install");
@@ -332,6 +343,7 @@ async function askInstall(items,extra={}){
     buttons:[{id:"ok",label:t("check.confirm"),primary:true},...(extra.buttons||[]),{id:"later",label:t("check.later")}]});
   if(r.id==="py")api().open_python_page();
   else if(r.id==="ff")api().open_ffmpeg_page();
+  else if(r.id==="proj")api().open_project_page();
   if(r.id!=="ok")return;
   showInstalling();  // 先開「安裝中」再通知 Python 開始，這樣最早的進度與失敗事件都接得到
   const res=await api().confirm_install(items);
@@ -401,11 +413,11 @@ async function init(){
   $("note").hidden=true;
   const s=await api().get_state();
   I18N=s.strings||{};LANG=s.lang||"zh-TW";buildLang(s.language||"auto");applyI18n();
-  $("ver").textContent="v"+s.version;defaultDir=s.default_dir;$("dir").value=s.outdir;
+  $("ver").textContent="v"+s.version;$("beta").hidden=!s.beta;defaultDir=s.default_dir;$("dir").value=s.outdir;
   for(const k in FIELDS){const [id,t]=FIELDS[k],e=$(id);
     if(t==="c")e.checked=!!s[k];else if(e.tagName==="SELECT")setSel(id,String(s[k]));else e.value=s[k]}
   $("frag").disabled=!s.boost;buildLanes();setMode(s.appearance,false);ready=true;syncClear();root.classList.remove("pending");
-  try{const pr=await api().get_install_prompt();if(pr)showPrompt(pr.items)}catch(_){}  // 啟動檢查比網頁先做完時補領（同一組項目只會顯示一次）
+  try{const pr=await api().get_install_prompt();if(pr)showPrompt(pr.items,pr.ui)}catch(_){}  // 啟動檢查比網頁先做完時補領（同一組項目只會顯示一次）
 }
 async function loadPreviewLocale(){  // 瀏覽器預覽模式沒有 Python；能讀到 locales 就用繁中，讀不到就維持畫面上寫死的繁中
   try{  // 新增語言檔案時，這份清單要跟 locales/zh-TW/ 底下的檔名同步

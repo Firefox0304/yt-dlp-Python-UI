@@ -474,11 +474,17 @@ _controllers_lock = threading.Lock()
 
 
 def terminate_all_downloads():
-    """終止所有進行中的下載（關閉視窗時呼叫）。"""
+    """終止所有進行中的下載（關閉視窗時呼叫）。
+
+    關視窗的幾條路徑（關閉鈕、closing 事件、webview.start 結束後）都會呼叫它，所以必須可以重複呼叫：
+    已經取消過的不再處理，沒有東西要終止時也不寫日誌，同一次關閉只會留下一行紀錄。
+    """
     with _controllers_lock:
-        controllers = list(_controllers)
-    logger.get().info("Terminating %d running downloads", len(controllers))
-    for controller in controllers:
+        pending = [c for c in _controllers if not c.cancelled]
+    if not pending:
+        return
+    logger.get().info("Terminating %d running downloads", len(pending))
+    for controller in pending:
         controller.cancel()
 
 

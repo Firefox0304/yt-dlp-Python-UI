@@ -37,6 +37,17 @@ def summarize_update(results):
             problem = True
             lines.append(t("update.fail", name="yt-dlp-ejs", message=ej.get("message", unknown)))
 
+    ui = results.get("ui")  # UI（本程式）：有新版顯示「v目前 → v最新」，沒有就只顯示目前版本
+    if ui is not None:
+        if ui.get("status") == "update_available":
+            lines.append(t("update.ui.available", current=ui["current"], latest=ui["latest"]))
+        elif ui.get("status") == "beta":  # 本地版本比 GitHub 上最新發佈的還高
+            lines.append(t("update.ui.beta", current=ui["current"], latest=ui["latest"]))
+        elif ui.get("status") == "ok":
+            lines.append(t("update.ui.ok", current=ui["current"]))
+        else:
+            lines.append(t("update.ui.unknown", current=ui.get("current", "")))
+
     py = results.get("python", {})
     if py.get("status") == "ok":
         notes = []

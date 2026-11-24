@@ -17,7 +17,9 @@ import urllib.request
 from modules import downloader
 from modules import engine as engine_mod
 from modules import utils
+from modules import channel
 from modules.i18n import t
+from modules.version import APP_VERSION
 
 PYPI_URL = "https://pypi.org/pypi/yt-dlp/json"
 
@@ -82,9 +84,11 @@ def _version_tuple(version):
 def is_newer(latest, current):
     """yt-dlp 版本是純數字的日期格式（2025.10.22[.nightly]），直接比較數字即可。"""
     try:
-        return _version_tuple(latest) > _version_tuple(current)
+        a, b = _version_tuple(latest), _version_tuple(current)
     except ValueError:
         return latest != current
+    size = max(len(a), len(b))  # 長度不同時補零再比：7.1 與 7.1.0 視為相同版本
+    return a + (0,) * (size - len(a)) > b + (0,) * (size - len(b))
 
 
 def build_update_command(eng):
@@ -321,6 +325,67 @@ def check_deno(base_dir, check_upgrade=False, winget_ok=False):
             "source": "program" if in_program_dir else "path", "update": update}
 
 
+# --------------------------------------------------------------------------- #
+# UI（本程式）版本：查 GitHub 專案庫的 tag
+# --------------------------------------------------------------------------- #
+
+PROJECT_URL = "https://github.com/Firefox0304/yt-dlp-Python-UI"
+# 「yt-dlp-Python-UI」按鈕開的頁面：GitHub 會自動導向最新的 Release；固定網址，不依賴 tag 名稱，tag 命名改了也不會 404
+RELEASE_URL = PROJECT_URL + "/releases/latest"
+UI_TAGS_URL = "https://api.github.com/repos/Firefox0304/yt-dlp-Python-UI/tags?per_page=100"
+# tag 只認「可有 UI- 前綴、可有 v、後面是純數字版本」：UI-v7.1.0、v7.1.0、7.1.0 都行；預覽版等其他 tag 一律忽略
+_UI_TAG_RE = re.compile(r"^(?:ui[-_ ]?)?v?(\d+(?:\.\d+){1,3})$", re.IGNORECASE)
+
+
+def parse_ui_tag(name):
+    """tag 名稱 → 數字版本（'UI-v7.1.0' → '7.1.0'）；不是版本號格式時回傳 None。"""
+    match = _UI_TAG_RE.match(str(name or "").strip())
+    return match.group(1) if match else None
+
+
+def latest_ui_version(tags):
+    """從 GitHub tags 清單挑出數字最大的版本；不依賴 API 回傳的順序。沒有符合格式的 tag 回傳 None。"""
+    best = None
+    for tag in tags or []:
+        version = parse_ui_tag(tag.get("name") if isinstance(tag, dict) else tag)
+        if version and (best is None or is_newer(version, best)):
+            best = version
+    return best
+
+
+def fetch_latest_ui(timeout=8):
+    req = urllib.request.Request(UI_TAGS_URL, headers={"User-Agent": "yt-dlp-python-UI",
+                                                       "Accept": "application/vnd.github+json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return latest_ui_version(json.load(resp))
+
+
+def check_ui(current=None, fetch=None):
+    """回傳 {"status": ok | update_available | beta | unknown, "current", "latest"?}。
+
+    beta：本地版本比 GitHub 上最新的 tag 還高（還沒發佈的搶先版），會同步記到 modules/channel.py。
+    unknown：查不到（離線、被限流、沒有符合格式的 tag），不算檢查失敗，也不改變原本的 Beta 狀態（無法確認就不更動）。
+    畫面上只會出現解析後的數字版本，不會出現 tag 原文。
+    """
+    current = str(current or APP_VERSION)
+    result = {"status": "unknown", "current": current}
+    try:
+        latest = (fetch or fetch_latest_ui)()
+    except Exception:  # noqa: BLE001
+        return result
+    if not latest:
+        return result
+    result["latest"] = latest
+    if is_newer(latest, current):
+        result["status"] = "update_available"
+    elif is_newer(current, latest):
+        result["status"] = "beta"
+    else:
+        result["status"] = "ok"
+    channel.set_beta(result["status"] == "beta")
+    return result
+
+
 def check_all(eng, log=lambda text: None, base_dir=None, auto_update=True):
     """一次檢查 yt-dlp、Python、FFmpeg、Deno；各自回報成功或錯誤，互不影響。
 
@@ -340,6 +405,7 @@ def check_all(eng, log=lambda text: None, base_dir=None, auto_update=True):
             results["ejs"] = check_ejs(eng, check_upgrade=not auto_update)
         except Exception as exc:  # noqa: BLE001
             results["ejs"] = {"status": "error", "message": str(exc)}
+    results["ui"] = check_ui()  # 本程式（UI）：查專案庫的 tag，查不到不算失敗
     log(t("upd.log.checking_python"))
     try:
         results["python"] = check_python()

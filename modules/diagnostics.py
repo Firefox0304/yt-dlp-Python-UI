@@ -10,7 +10,7 @@ import re
 import zipfile
 
 from modules import logger
-from modules.version import APP_NAME, APP_VERSION
+from modules import channel
 
 MAX_LOG_BYTES = 2 * 1024 * 1024   # 日誌太大時只取最後這麼多，除錯需要的通常在尾端
 MAX_REPORT_CHARS = 200_000        # 網頁傳來的診斷文字長度上限
@@ -60,7 +60,7 @@ def _read_log_tail(log_dir):
 
 def build_package(dest_path, base_dir, report_text, cfg, home=None):
     """寫出診斷包 zip，回傳放進去的檔名清單。"""
-    header = f"{APP_NAME} v{APP_VERSION}\n\n"
+    header = f"{channel.title()}\n\n"
     files = {
         "diagnostics.txt": redact(header + str(report_text or "")[:MAX_REPORT_CHARS], home),
         "latest.log": redact(_read_log_tail(os.path.join(base_dir, "logs")), home),
