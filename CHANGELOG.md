@@ -1,3 +1,79 @@
+# v7.1.0
+
+## 新增：UI（本程式）版本檢查
+- 「檢查更新」多一行 UI 版本，位置在 yt-dlp-ejs 之後、Python 之前：
+  - 已是最新：`UI：v7.1.0`
+  - 有新版：`UI：v7.1.0 → v7.1.1`，彈窗下方多一個「yt-dlp-Python-UI」按鈕，按下去用瀏覽器開專案庫 https://github.com/Firefox0304/yt-dlp-Python-UI（不會自動下載或安裝）。
+  - 查不到（離線、被 GitHub 限流、沒有符合格式的 tag）：`UI：v7.1.0（無法查詢最新版本）`，不算檢查失敗，也不影響其他項目。
+- **啟動自檢也會檢查 UI 新版**：有新版時跳出彈窗顯示 `UI：v目前 → v最新` 與「yt-dlp-Python-UI」「稍後再說」；同時有要安裝／更新的項目（yt-dlp 等）時，合併成同一個彈窗，UI 那行放在最上面，「yt-dlp-Python-UI」按鈕在「確認」與「稍後再說」之間。沒有新版也沒有其他項目時不跳任何彈窗。
+- 版本來源是 GitHub 專案庫的 tag（`https://api.github.com/repos/Firefox0304/yt-dlp-Python-UI/tags`）：
+  - tag 格式只認「可有 `UI-` 前綴、可有 `v`、其後為純數字版本」，例如 `UI-v7.1.1`、`v7.1.1`、`7.1.1`；預覽版（`v7.1.1-beta`）與其他用途的 tag 一律忽略。
+  - 取所有 tag 中數字最大的一個（7.10 比 7.9 新），不依賴 API 回傳順序。
+  - 畫面只顯示解析後的數字版本，不顯示 tag 原文；專案庫網址寫死在後端，網頁不能指定要開哪個網址。
+  - **發佈新版時請在 GitHub 打上對應的 tag**（例如 `v7.1.1`），否則使用者查不到新版。
+- 「正在檢查更新…」的提示文字加入 UI；四種語言新增 `update.ui.*`、`check.ui.title`。
+
+## 變更
+- **尋找 yt-dlp 的順序**改為：Python 模組（`python -m yt_dlp`）→ `yt-dlp.exe`（先程式資料夾、再 PATH）→ 都找不到就由啟動檢查提示以 pip 安裝。以前是程式資料夾的 `yt-dlp.exe` 優先。同時有 Python 模組和資料夾內的 `yt-dlp.exe` 時，現在會用模組，更新與 yt-dlp-ejs 檢查也跟著走 pip。
+
+## 內部整理（不影響使用）
+- 啟動檢查的通知改為 `deliver(items, ui)`（`modules/check.py` 的 `run_startup_check`、`modules/webui.py` 的 `_deliver_prompt`、網頁的 `showPrompt`）；兩項檢查互不影響。
+- 新增 `tests/test_ui_update.py`（tag 解析與比較、顯示順序、啟動通知、固定網址），`tests/test_engine.py` 改為新的尋找順序。
+- 版本號升為 7.1.0。升級覆蓋 `modules/`、`web/`、`locales/`、`tests/`、`CHANGELOG.md`；`.pyw` 入口沒有變動，不需要重新打包 exe。
+
+## 已知限制
+- 彈窗外觀與按鈕需在 Windows 實機確認（開發環境無法驗證）。
+- GitHub API 未登入每小時有 60 次請求的限額；平常使用遠低於此。
+
+# v7.0.2
+
+## 修正
+- 修正：exe 版 yt-dlp 已用 pip 更新成功（`yt-dlp --version` 是新版），但程式的「檢查更新」仍顯示舊版本，啟動時還反覆提示更新。原因是 `engine.get_version()` 在引擎為 Python 模組時，先用 `importlib.metadata.version("yt-dlp")` 讀版本；exe 讀到的是 exe 自己的環境（含打包時留下的舊版本資訊），不是系統 Python 實際安裝的 yt-dlp。
+  - 現在 exe 版跳過行程內的讀法，直接執行 `python -m yt_dlp --version` 向系統 Python 問，與實際用來下載的是同一個 yt-dlp。
+  - 直接執行 .pyw 時維持原本的快速讀法，不多開子行程。
+  - 「檢查更新」摘要與診斷報告的 yt-dlp 版本也因此改正。
+
+## 內部整理（不影響使用）
+- `tests/test_engine.py` 新增 `GetVersionTests`（exe 版不碰行程內中繼資料、.pyw 版不開子行程）。
+- 版本號升為 7.0.2。升級只要覆蓋 `modules/`、`tests/`、`CHANGELOG.md`，不需要重新打包 exe。
+
+# v7.0.1
+
+## 修正
+- 修正：exe 版「檢查更新」與啟動檢查無法更新 yt-dlp（日誌出現 `yt-dlp.EXE -U` 失敗、代碼 100，訊息要求改用 pip 更新）。原因是 `engine.resolve_engine()` 用 `importlib.util.find_spec("yt_dlp")` 在 exe 內部判斷有沒有 yt-dlp 模組，exe 看不到系統 Python 的套件而誤判成沒裝，於是把 pip 安裝的 `Scripts\yt-dlp.EXE` 當成獨立執行檔、改用 `-U` 自我更新，pip 版的 yt-dlp 會拒絕。
+  - 現在 exe 版會用 `utils.get_console_python()` 找到的真正 Python 執行 `find_spec` 判斷；有裝就用 `python -m yt_dlp`，更新走 `pip install --upgrade yt-dlp`。直接執行 .pyw 的路徑不變。
+  - 只快取「確定有裝」的結果；沒裝不快取，所以剛安裝完下一次判斷就會看到。
+  - 連帶改善：exe 版現在也會檢查與安裝 yt-dlp-ejs（`ejs_applies` 只在引擎為模組時成立），下載也改為 `python -m yt_dlp`。
+  - 本機 `yt-dlp.exe` 優先、PATH 上的獨立 yt-dlp 仍用 `-U`，這兩條不變。
+- 修正：關閉視窗時日誌 "Terminating 0 running downloads" 連續出現三次。關閉鈕（`win_close`）、`closing` 事件、`webview.start()` 結束後各呼叫一次 `terminate_all_downloads()`。現在它可以安全重複呼叫：已取消的不再處理，沒有下載要終止時不寫日誌，同一次關閉最多一行。三個呼叫點保留，確保各種關閉方式都會終止下載。
+
+## 內部整理（不影響使用）
+- 新增 `tests/test_engine.py`（exe 版引擎判斷、更新指令、快取行為）與 `tests/test_downloader.py` 的 `TerminateAllTests`。
+- 版本號升為 7.0.1。
+- 因為 `modules/` 是 exe 旁的外部檔案，升級只要覆蓋 `modules/`、`tests/`、`CHANGELOG.md`，不需要重新打包 exe。
+
+# v7.0.0
+
+## 新增：啟動檢查與自動安裝
+- 視窗顯示後，背景檢查缺少的核心程式（Python、yt-dlp、yt-dlp-ejs、FFmpeg、Deno）與 yt-dlp 新版；有項目時跳出**一個**彈窗列出全部，按「確認」才安裝，「稍後再說」則不動作。沒有缺少也沒有更新時不跳任何彈窗。
+- 安裝順序：Python（winget）→ yt-dlp（pip）→ yt-dlp-ejs（pip）→ FFmpeg（winget）→ Deno（winget）；winget 一律加 `--accept-source-agreements --accept-package-agreements`。
+- 安裝中顯示「正在安裝 xxx.／..／...」循環動態文字與進度條（依 pip／winget 的輸出階段推進）；安裝中彈窗不能關閉。
+- 全部完成後自動重新啟動（重新從登錄檔讀取系統＋使用者 PATH，新裝的程式立刻找得到）；任何一項失敗就顯示原因、不重啟。winget 不可用時改提供下載頁按鈕。
+- 判斷「找不到 Python」時會實際執行 `python --version`，並排除 Microsoft Store 的 WindowsApps 假捷徑。
+- 「檢查更新」按鈕：yt-dlp 改為只查不裝，並新增 Deno；yt-dlp、FFmpeg、Deno 有新版時接上同一組安裝彈窗。FFmpeg、Deno 放在程式資料夾時不是 winget 裝的，只顯示版本。啟動時只額外檢查 yt-dlp 新版，不查 Python。
+- yt-dlp-ejs 是獨立項目（缺少、有新版各自判斷）；只有 yt-dlp 走 Python 模組（pip）時才處理，獨立的 yt-dlp.exe 不檢查。「檢查更新」的摘要也會顯示它的版本。
+- 新增 `modules/check.py`；四種語言新增 `check.*` 等文字。
+
+## 變更
+- 移除 `webui._ensure_ytdlp` 啟動時偷偷 pip 安裝 yt-dlp 的舊行為。
+- `.pyw` 啟動器只保留 pywebview 缺失時的自動安裝與 MessageBoxW 提示。
+- exe 版找 Python 時改用 `utils.find_real_python()`（排除假捷徑）。
+- 版本號升為 7.0.0。
+
+## 已知限制
+- 需在 Windows 實機測試彈窗、winget 安裝與重新啟動（開發環境無法驗證）。
+- 單一 exe 版以 PATH 上的 Python 安裝 yt-dlp；exe 版尋找 yt-dlp 的順序（engine.py）未更動。
+
 # v6.6
 
 ## 修正

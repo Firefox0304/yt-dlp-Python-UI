@@ -9,13 +9,12 @@ import importlib.metadata
 import json
 import os
 import re
-import subprocess
 import sys
 import threading
 import time
 import webbrowser
 
-from modules import config_manager, diagnostics, downloader, history, i18n, logger, update_summary, updater, utils
+from modules import check, config_manager, diagnostics, downloader, history, i18n, logger, update_summary, updater, utils
 from modules import engine as engine_mod
 from modules.i18n import t
 from modules.progress import parse_progress_line
@@ -66,6 +65,10 @@ class Api(WindowMixin):
         self._last_progress = 0.0
         self._lock = threading.Lock()
         self._job = {}
+        self._prompt = None            # 啟動檢查找到的待處理項目（網頁剛載入時也能補領）
+        self._check_started = False
+        self._installing = False
+        self._install_lock = threading.Lock()
         self._init_window_state()  # 視窗控制用的內部狀態（見 modules/winshell.py）
 
     # ----------------------------------------------------------- Python → 網頁
@@ -499,11 +502,11 @@ class Api(WindowMixin):
             try:
                 eng = engine_mod.resolve_engine(self._base_dir)
                 results = updater.check_all(eng, log=lambda text: self._emit(type="log", text=text),
-                                            base_dir=self._base_dir)
+                                            base_dir=self._base_dir, auto_update=False)
             except Exception as exc:  # noqa: BLE001
                 LOG.exception("Update check failed")
                 failed = {"status": "error", "message": str(exc)}
-                results = {"ytdlp": failed, "python": failed, "ffmpeg": failed}
+                results = {"ytdlp": failed, "python": failed, "ffmpeg": failed, "deno": failed}
             text, problem, suggest_python = update_summary.summarize_update(results)
             ffmpeg_missing = (results.get("ffmpeg") or {}).get("status") == "missing"
             command = None  # (按鈕文字, 命令, 種類)
@@ -516,7 +519,9 @@ class Api(WindowMixin):
                 title_key, note_key = update_summary.COMMAND_NOTES[command["kind"]]
                 command["title"], command["note"] = t(title_key), t(note_key)
             self._emit(type="update_done", text=text, problem=problem,
+                       items=check.items_from_results(results),  # 有新版的項目：網頁接上同一組安裝彈窗
                        python_url=updater.PYTHON_DOWNLOADS_URL if suggest_python else "",
+                       project_url=updater.PROJECT_URL if (results.get("ui") or {}).get("status") == "update_available" else "",
                        ffmpeg_url=downloader.FFMPEG_DOWNLOAD_URL if ffmpeg_missing else "",
                        command=command)
 
@@ -527,24 +532,73 @@ class Api(WindowMixin):
         webbrowser.open(updater.PYTHON_DOWNLOADS_URL)
         return True
 
+    def open_project_page(self):
+        """UI 有新版時的「yt-dlp-Python-UI」按鈕：開專案庫（網址固定寫在後端，網頁不能指定）。"""
+        webbrowser.open(updater.PROJECT_URL)
+        return True
+
+    # ----------------------------------------------------------- 啟動檢查與自動安裝（邏輯在 modules/check.py）
+    def _start_check(self, *_):
+        """視窗顯示後呼叫一次：在背景檢查缺少的程式與 yt-dlp 新版。"""
+        if self._check_started:
+            return
+        self._check_started = True
+        threading.Thread(target=check.run_startup_check, args=(self._base_dir, self._deliver_prompt),
+                         daemon=True).start()
+
+    def _deliver_prompt(self, items, ui=None):
+        """items：要安裝／更新的項目；ui：UI（本程式）有新版時是 {"current", "latest"}，否則 None。"""
+        self._prompt = {"items": items, "ui": ui}
+        self._emit(type="install_prompt", items=items, ui=ui)
+
+    def get_install_prompt(self):
+        """網頁載入完成後補領：避免檢查比網頁先做完時事件落空。同一組項目網頁只會顯示一次。"""
+        return self._prompt
+
+    def confirm_install(self, items):
+        """使用者在彈窗按「確認」：開始安裝（項目只認白名單，指令都由 check.py 組裝）。"""
+        if self._controller is not None:
+            return {"ok": False, "error": t("check.err.download_busy")}
+        clean = check.sanitize_items(items)
+        if not clean:
+            return {"ok": False, "error": t("check.err.no_items")}
+        with self._install_lock:
+            if self._installing:
+                return {"ok": False, "error": t("check.err.installing")}
+            self._installing = True
+        threading.Thread(target=self._install_worker, args=(clean,), daemon=True).start()
+        return {"ok": True}
+
+    def _install_worker(self, items):
+        try:
+            check.run_install(self._base_dir, items, self._emit)
+            self._emit(type="install_done", ok=True)
+            time.sleep(1.0)  # 讓網頁顯示「完成」一下
+            check.restart(self._base_dir)
+        except check.InstallError as exc:
+            self._fail_install(exc.item, str(exc), exc.pages)
+            return
+        except Exception as exc:  # noqa: BLE001 — 任何意外都要讓網頁顯示原因，並恢復可操作
+            LOG.exception("Install failed")
+            self._fail_install(None, str(exc), ())
+            return
+        self.win_close(animate=False)  # 新程序已啟動，關閉目前視窗
+
+    def _fail_install(self, item, message, pages):
+        with self._install_lock:
+            self._installing = False
+        self._emit(type="install_fail", item=item, message=message, pages=list(pages))
+
+    def open_download_page(self, item):
+        """安裝失敗時的下載頁（只開白名單內的網址）。"""
+        url = check.DOWNLOAD_PAGES.get(item)
+        if url:
+            webbrowser.open(url)
+        return bool(url)
+
     # ----------------------------------------------------------- 視窗事件
     def on_closing(self):
         downloader.terminate_all_downloads()
-
-
-def _ensure_ytdlp(base_dir):
-    """找不到 yt-dlp 時自動 pip 安裝；失敗就算了，下載時會顯示中文錯誤訊息。"""
-    if engine_mod.resolve_engine(base_dir) is not None:
-        return
-    python = utils.get_console_python()
-    if not python:
-        return
-    LOG.info("yt-dlp not found, installing")
-    try:
-        subprocess.run([python, "-m", "pip", "install", "--upgrade", "yt-dlp"],
-                       capture_output=True, timeout=300, **utils.hidden_subprocess_kwargs())
-    except (OSError, subprocess.SubprocessError) as exc:
-        LOG.warning("pip install yt-dlp failed: %s", exc)
 
 
 def main(base_dir):
@@ -555,7 +609,6 @@ def main(base_dir):
     config_path = os.path.join(base_dir, "config", "settings.json")
     cfg = config_manager.load_or_init(config_path)
     config_manager.ensure_example(base_dir, config_path, cfg)
-    _ensure_ytdlp(base_dir)
 
     i18n.init(base_dir)
     i18n.set_language(i18n.resolve(cfg.get("language")))
@@ -573,6 +626,10 @@ def main(base_dir):
     shown = getattr(window.events, "shown", None)
     if shown is not None:  # 視窗建立後補上最小化框，Win+M 才會處理這個無邊框視窗
         shown += (lambda *_: (api._enable_minimize_box(), api._install_minimize_hook(), api._start_minimize_watcher()))
+    # 視窗顯示後才開始檢查缺少的程式與更新（沒有 shown 事件的舊版 pywebview 改用 loaded）
+    trigger = shown if shown is not None else getattr(window.events, "loaded", None)
+    if trigger is not None:
+        trigger += api._start_check
     for name, value in (("maximized", True), ("restored", False)):
         event = getattr(window.events, name, None)
         if event is not None:

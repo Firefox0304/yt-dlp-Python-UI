@@ -68,5 +68,42 @@ class OutputPathTests(unittest.TestCase):
         self.assertIsNone(extract_output_path("[youtube] Extracting URL"))
 
 
+class TerminateAllTests(unittest.TestCase):
+    """關視窗有好幾條路徑會呼叫 terminate_all_downloads，重複呼叫只能處理一次、只留一行日誌。"""
+
+    class Counting(downloader.DownloadController):
+        cancels = 0
+
+        def cancel(self):
+            type(self).cancels += 1
+            super().cancel()
+
+    def setUp(self):
+        self.Counting.cancels = 0
+        self.controller = self.Counting()
+        with downloader._controllers_lock:
+            downloader._controllers.append(self.controller)
+        self.addCleanup(self._remove)
+
+    def _remove(self):
+        with downloader._controllers_lock:
+            if self.controller in downloader._controllers:
+                downloader._controllers.remove(self.controller)
+
+    def test_repeated_calls_cancel_once_and_log_once(self):
+        with self.assertLogs(downloader.logger.get(), level="INFO") as logs:
+            for _ in range(3):
+                downloader.terminate_all_downloads()
+        self.assertEqual(self.Counting.cancels, 1)
+        self.assertTrue(self.controller.cancelled)
+        self.assertEqual(sum("Terminating" in line for line in logs.output), 1)
+
+    def test_nothing_running_logs_nothing(self):
+        self._remove()
+        with self.assertNoLogs(downloader.logger.get(), level="INFO"):
+            downloader.terminate_all_downloads()
+            downloader.terminate_all_downloads()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -43,12 +43,48 @@ def get_console_python():
     """
     exe = sys.executable or ""
     if getattr(sys, "frozen", False):
-        return shutil.which("python") or shutil.which("python3")
+        return find_real_python()  # exe 版沒有自己的直譯器，要找系統上真正能執行的 Python
     if os.path.basename(exe).lower() == "pythonw.exe":
         console = os.path.join(os.path.dirname(exe), "python.exe")
         if os.path.isfile(console):
             return console
     return exe or shutil.which("python") or shutil.which("python3")
+
+
+def is_store_stub(path):
+    """Windows 的 WindowsApps 資料夾裡的 python.exe 是 Microsoft Store 的假捷徑（沒安裝時只會跳去商店）。"""
+    return "\\windowsapps\\" in str(path or "").replace("/", "\\").lower()
+
+
+def _runs_python3(exe, run):
+    try:
+        proc = run([exe, "--version"], capture_output=True, text=True, timeout=15, **hidden_subprocess_kwargs())
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0 and "Python 3" in ((proc.stdout or "") + (proc.stderr or ""))
+
+
+def find_real_python(path_env=None, run=subprocess.run, isfile=os.path.isfile, names=None):
+    """在 PATH 裡找真正能用的 Python：略過 WindowsApps 假捷徑，並實際執行 ``--version`` 確認。找不到回傳 None。
+
+    path_env、run、isfile、names 只是為了測試時可以注入；平常不需要傳。
+    """
+    names = names or (("python.exe",) if os.name == "nt" else ("python3", "python"))
+    path_env = os.environ.get("PATH", "") if path_env is None else path_env
+    seen = set()
+    for folder in path_env.split(os.pathsep):
+        folder = folder.strip().strip('"')
+        if not folder:
+            continue
+        for name in names:
+            candidate = os.path.join(folder, name)
+            key = candidate.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            if isfile(candidate) and not is_store_stub(candidate) and _runs_python3(candidate, run):
+                return candidate
+    return None
 
 
 def is_bilibili_url(url):

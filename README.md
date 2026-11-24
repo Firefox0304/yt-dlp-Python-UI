@@ -17,6 +17,8 @@
 1. 解壓縮整個資料夾。
 2. 雙擊 `yt-dlp-Python-UI.pyw`。
 
+啟動後程式會在背景檢查缺少的核心程式（Python、yt-dlp、yt-dlp-ejs、FFmpeg、Deno）與 yt-dlp、yt-dlp-ejs 新版；有項目時跳出彈窗，按「確認」才會安裝（Python、FFmpeg、Deno 用 winget，yt-dlp、yt-dlp-ejs 用 pip），完成後程式自動重新啟動。沒有缺少也沒有更新時不會跳任何彈窗。
+
 第一次啟動若缺少 `pywebview`，程式會自動用 pip 安裝（沒有進度視窗，請稍候）；自動安裝失敗時會跳出提示，改在命令提示字元執行：
 
 ```
@@ -31,7 +33,7 @@ pip install -r requirements.txt
 - 進階選項：字幕、嵌入字幕、縮圖、影片資訊
 - 下載加速（`-N` 切片數 4／8／16；只對 HLS／m3u8、DASH 清單等分片式串流有效，一般 YouTube 影片不會變快）
 - 讀取影片資訊、取消下載、下載歷史（最近 50 筆）
-- 右側「快速操作」：載入範例、說明、下載歷史、開啟檔案位置（在檔案總管選取最近下載的檔案）、檢查更新（yt-dlp、Python、FFmpeg）、系統診斷（可匯出診斷包，方便回報問題）
+- 右側「快速操作」：載入範例、說明、下載歷史、開啟檔案位置（在檔案總管選取最近下載的檔案）、檢查更新（yt-dlp、Python、FFmpeg、Deno）、系統診斷（可匯出診斷包，方便回報問題）
 - 淺色／系統／深色主題；自訂標題列與無邊框視窗
 - 介面語言：繁體中文、简体中文、English、日本語（標題列右上方可切換；預設「自動」依 Windows 顯示語言決定）
 
@@ -39,6 +41,7 @@ pip install -r requirements.txt
 | 路徑 | 說明 |
 | --- | --- |
 | `yt-dlp-Python-UI.pyw` | 啟動器 |
+| `modules/check.py` | 啟動檢查、自動安裝（winget／pip）、重新讀取 PATH、重新啟動 |
 | `modules/` | Python 後端（`webui.py` 為網頁與 Python 之間的橋接；`winshell.py` 為自訂標題列的視窗控制；`progress.py` 為進度行解析；`diagnostics.py` 為診斷包匯出） |
 | `web/` | 介面：`index.html`（結構）、`style.css`（樣式）、`app.js`（邏輯） |
 | `locales/` | 介面文字：每個語言一個資料夾（`zh-TW/`、`zh-CN/`、`en/`、`ja/`），裡面的 `strings.json`（介面文字）、`errors.json`（錯誤訊息 `err.*`）、`logs.json`（日誌訊息 `log.*`）會合併載入；資料夾內新增其他 `.json` 也會被讀取 |
