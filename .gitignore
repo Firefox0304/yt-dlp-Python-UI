@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 logs/
 config/
+example/
 Download/
 yt-dlp.exe
 ffmpeg.exe
