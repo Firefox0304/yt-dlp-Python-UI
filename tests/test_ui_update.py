@@ -10,7 +10,7 @@ from unittest import mock
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from modules import check, i18n, update_summary, updater  # noqa: E402
+from modules import channel, check, i18n, update_summary, updater  # noqa: E402
 
 
 class ParseTagTests(unittest.TestCase):
@@ -50,16 +50,24 @@ class LatestVersionTests(unittest.TestCase):
         self.assertTrue(seen["agent"])
         self.assertTrue(updater.UI_TAGS_URL.startswith("https://api.github.com/repos/Firefox0304/yt-dlp-Python-UI/"))
         self.assertEqual(updater.PROJECT_URL, "https://github.com/Firefox0304/yt-dlp-Python-UI")
+        self.assertEqual(updater.RELEASE_URL, "https://github.com/Firefox0304/yt-dlp-Python-UI/releases/latest")
 
 
 class CheckUiTests(unittest.TestCase):
+    def setUp(self):
+        channel.set_beta(False)
+        self.addCleanup(channel.set_beta, False)
+
     def test_update_available(self):
         self.assertEqual(updater.check_ui("7.0.2", fetch=lambda: "7.0.3"),
                          {"status": "update_available", "current": "7.0.2", "latest": "7.0.3"})
 
-    def test_same_or_older_remote_is_ok(self):
+    def test_same_version_is_ok(self):
         self.assertEqual(updater.check_ui("7.0.2", fetch=lambda: "7.0.2")["status"], "ok")
-        self.assertEqual(updater.check_ui("7.1.0", fetch=lambda: "7.0.9")["status"], "ok")
+
+    def test_local_newer_than_github_is_beta(self):
+        self.assertEqual(updater.check_ui("7.1.0", fetch=lambda: "7.0.9"),
+                         {"status": "beta", "current": "7.1.0", "latest": "7.0.9"})
 
     def test_ten_is_newer_than_nine(self):
         self.assertEqual(updater.check_ui("7.9.0", fetch=lambda: "7.10.0")["status"], "update_available")
@@ -94,14 +102,27 @@ class SummaryTests(unittest.TestCase):
 
     def test_new_version_shows_arrow_between_ejs_and_python(self):
         lines, problem = self.lines({"status": "update_available", "current": "7.0.2", "latest": "7.0.3"})
-        self.assertEqual(lines[1], "yt-dlp-ejs：0.8.0")
+        self.assertEqual(lines[1], "yt-dlp-ejs：0.8.0（已為最新版本）")
         self.assertEqual(lines[2], "UI：v7.0.2 → v7.0.3")
         self.assertTrue(lines[3].startswith("Python："))
         self.assertFalse(problem)
 
     def test_up_to_date_shows_only_current(self):
         lines, _ = self.lines({"status": "ok", "current": "7.0.2", "latest": "7.0.2"})
-        self.assertEqual(lines[2], "UI：v7.0.2")
+        self.assertEqual(lines[2], "UI：v7.0.2（已為最新版本）")
+
+    def test_up_to_date_template_for_every_package(self):
+        lines, _ = self.lines({"status": "ok", "current": "7.1.1", "latest": "7.1.1"})
+        self.assertEqual(lines, ["yt-dlp：2026.11.23（已為最新版本）", "yt-dlp-ejs：0.8.0（已為最新版本）",
+                                 "UI：v7.1.1（已為最新版本）", "Python：3.15.2（已為最新版本）"])
+
+    def test_up_to_date_template_in_other_languages(self):
+        for lang, tail in (("zh-CN", "（已是最新版本）"), ("en", " (up to date)"), ("ja", "（最新バージョンです）")):
+            i18n.set_language(lang)
+            lines, _ = self.lines({"status": "ok", "current": "7.1.1", "latest": "7.1.1"})
+            for line in lines:
+                self.assertTrue(line.endswith(tail), (lang, line))
+            self.assertIn("2026.11.23", lines[0])
 
     def test_unknown_is_not_a_problem(self):
         lines, problem = self.lines({"status": "unknown", "current": "7.0.2"})
@@ -170,7 +191,189 @@ class ApiPromptTests(unittest.TestCase):
         from modules import webui
         with tempfile.TemporaryDirectory() as base, mock.patch("modules.webui.webbrowser.open") as opened:
             webui.Api(base, {}, os.path.join(base, "s.json")).open_project_page()
-        opened.assert_called_once_with(updater.PROJECT_URL)
+        opened.assert_called_once_with(updater.RELEASE_URL)
+
+
+class VersionCompareTests(unittest.TestCase):
+    def test_different_lengths_are_padded_with_zero(self):
+        self.assertFalse(updater.is_newer("7.1", "7.1.0"))
+        self.assertFalse(updater.is_newer("7.1.0", "7.1"))
+        self.assertTrue(updater.is_newer("7.1.0.1", "7.1"))
+        self.assertTrue(updater.is_newer("7.2", "7.1.9"))
+
+    def test_ytdlp_style_versions_unchanged(self):
+        self.assertTrue(updater.is_newer("2026.11.23", "2026.10.26"))
+        self.assertFalse(updater.is_newer("2026.10.26", "2026.11.23"))
+        self.assertTrue(updater.is_newer("2026.11.23.1", "2026.11.23"))
+        self.assertFalse(updater.is_newer("2026.11.23", "2026.11.23"))
+
+    def test_short_tag_does_not_cause_false_beta(self):
+        channel.set_beta(False)
+        self.addCleanup(channel.set_beta, False)
+        self.assertEqual(updater.check_ui("7.1.0", fetch=lambda: "7.1")["status"], "ok")
+        self.assertFalse(channel.is_beta())
+
+
+class BetaStateTests(unittest.TestCase):
+    def setUp(self):
+        channel.set_beta(False)
+        self.addCleanup(channel.set_beta, False)
+
+    def test_beta_set_and_cleared_by_check_ui(self):
+        updater.check_ui("7.1.2", fetch=lambda: "7.1.1")
+        self.assertTrue(channel.is_beta())
+        updater.check_ui("7.1.2", fetch=lambda: "7.1.2")      # 發佈了對應的 tag
+        self.assertFalse(channel.is_beta())
+        updater.check_ui("7.1.2", fetch=lambda: "7.1.1")
+        updater.check_ui("7.1.2", fetch=lambda: "7.1.3")      # 有更新的版本
+        self.assertFalse(channel.is_beta())
+
+    def test_unknown_keeps_previous_state(self):
+        def boom():
+            raise OSError("offline")
+        updater.check_ui("7.1.2", fetch=lambda: "7.1.1")
+        updater.check_ui("7.1.2", fetch=boom)
+        self.assertTrue(channel.is_beta())                    # 無法確認就不更動
+        channel.set_beta(False)
+        updater.check_ui("7.1.2", fetch=boom)
+        self.assertFalse(channel.is_beta())                   # 從沒確認過就不標
+
+    def test_labels(self):
+        from modules.version import APP_NAME, APP_VERSION
+        self.assertEqual(channel.version_label(), f"v{APP_VERSION}")
+        self.assertEqual(channel.title(), f"{APP_NAME} v{APP_VERSION}")
+        channel.set_beta(True)
+        self.assertEqual(channel.version_label(), f"v{APP_VERSION} Beta")
+        self.assertEqual(channel.title(), f"{APP_NAME} v{APP_VERSION} Beta")
+
+    def test_summary_line_in_every_language(self):
+        res = {"ytdlp": {"status": "up_to_date", "current": "2026.11.23"},
+               "ui": {"status": "beta", "current": "7.1.2", "latest": "7.1.1"},
+               "python": {"status": "ok", "current": "3.15.2", "patch_update": False, "new_series": False, "eol": False}}
+        expected = {"zh-TW": "UI：v7.1.2 Beta（GitHub 最新發佈為 v7.1.1）",
+                    "zh-CN": "UI：v7.1.2 Beta（GitHub 最新发布为 v7.1.1）",
+                    "en": "UI: v7.1.2 Beta (latest release on GitHub is v7.1.1)",
+                    "ja": "UI：v7.1.2 Beta（GitHub の最新リリースは v7.1.1 です）"}
+        i18n.init(ROOT)
+        for lang, line in expected.items():
+            i18n.set_language(lang)
+            text, problem, _ = update_summary.summarize_update(res)
+            self.assertEqual(text.split("\n\n")[1], line, lang)
+            self.assertFalse(problem)
+        i18n.set_language("zh-TW")
+
+    def test_diagnostics_header_has_beta(self):
+        import zipfile
+        from modules import diagnostics
+        with tempfile.TemporaryDirectory() as base:
+            for beta, header in ((False, channel.title()), (True, channel.title() + " Beta")):
+                channel.set_beta(beta)
+                dest = os.path.join(base, f"diag{beta}.zip")
+                diagnostics.build_package(dest, base, "report", {}, home=base)
+                with zipfile.ZipFile(dest) as z:
+                    first = z.read("diagnostics.txt").decode("utf-8").splitlines()[0]
+                self.assertEqual(first, channel.title())
+                self.assertEqual(first.endswith(" Beta"), beta)
+
+
+class StartupBetaTests(unittest.TestCase):
+    def setUp(self):
+        channel.set_beta(False)
+        self.addCleanup(channel.set_beta, False)
+
+    def run_check(self, ui_effect, on_beta, items=()):
+        delivered = []
+        with mock.patch("modules.check.collect_startup_items", return_value=list(items)), \
+                mock.patch("modules.check.collect_startup_ui", side_effect=ui_effect):
+            check.run_startup_check("base", lambda i, u: delivered.append((i, u)), on_beta)
+        return delivered
+
+    def test_on_beta_called_even_when_no_popup(self):
+        seen = []
+
+        def ui_check():
+            channel.set_beta(True)  # 模擬 check_ui 查到本地比 GitHub 新
+            return None
+
+        delivered = self.run_check(ui_check, seen.append)
+        self.assertEqual(seen, [True])
+        self.assertEqual(delivered, [])
+
+    def test_on_beta_called_when_ui_check_fails(self):
+        seen = []
+        self.run_check(OSError("offline"), seen.append)
+        self.assertEqual(seen, [False])
+
+    def test_on_beta_failure_does_not_block_popup(self):
+        def bad(_flag):
+            raise RuntimeError("boom")
+        items = [{"id": "ytdlp", "action": "upgrade"}]
+        self.assertEqual(self.run_check(lambda: None, bad, items), [(items, None)])
+
+
+class ApiBetaTests(unittest.TestCase):
+    def test_announce_beta_updates_page_and_window_title(self):
+        from modules import webui
+        channel.set_beta(True)
+        self.addCleanup(channel.set_beta, False)
+
+        class FakeWindow:
+            titles = []
+
+            def set_title(self, text):
+                self.titles.append(text)
+
+        with tempfile.TemporaryDirectory() as base:
+            api = webui.Api(base, {}, os.path.join(base, "settings.json"))
+            api._window = FakeWindow()
+            events = []
+            with mock.patch.object(webui.Api, "_emit", lambda self, **e: events.append(e)):
+                api._announce_beta()
+        self.assertEqual(events, [{"type": "ui_beta", "beta": True}])
+        self.assertEqual(FakeWindow.titles, [channel.title()])
+        self.assertTrue(channel.title().endswith(" Beta"))
+
+    def test_set_title_failure_is_ignored(self):
+        from modules import webui
+
+        class BadWindow:
+            def set_title(self, text):
+                raise RuntimeError("no window")
+
+        with tempfile.TemporaryDirectory() as base:
+            api = webui.Api(base, {}, os.path.join(base, "settings.json"))
+            api._window = BadWindow()
+            with mock.patch.object(webui.Api, "_emit", lambda self, **e: None):
+                api._announce_beta(False)  # 不丟例外就算通過
+
+    def test_get_state_has_beta_flag(self):
+        from modules import webui
+        i18n.init(ROOT)
+        i18n.set_language("zh-TW")
+        self.addCleanup(channel.set_beta, False)
+        with tempfile.TemporaryDirectory() as base:
+            api = webui.Api(base, {}, os.path.join(base, "settings.json"))
+            channel.set_beta(False)
+            self.assertFalse(api.get_state()["beta"])
+            channel.set_beta(True)
+            self.assertTrue(api.get_state()["beta"])
+
+
+class FrontEndWiringTests(unittest.TestCase):
+    """前端沒有自動化測試，至少確認膠囊、事件、樣式三處接起來（改名時會在這裡提醒）。"""
+
+    def read(self, *parts):
+        with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
+            return f.read()
+
+    def test_capsule_is_wired(self):
+        html, js, css = self.read("web", "index.html"), self.read("web", "app.js"), self.read("web", "style.css")
+        self.assertIn('id="ver"></span><span class="beta" id="beta" hidden>Beta</span>', html)
+        self.assertIn('e.type==="ui_beta"', js)
+        self.assertIn('$("beta").hidden=!s.beta', js)
+        self.assertIn(".beta[hidden]{display:none}", css)
+        self.assertEqual(css.count("--beta-soft:"), 3)  # 色彩定義：淺色 1 + 深色 2（跟隨系統與手動）
+        self.assertIn("background:var(--beta-soft)", css)  # .beta 有用到
 
 
 if __name__ == "__main__":

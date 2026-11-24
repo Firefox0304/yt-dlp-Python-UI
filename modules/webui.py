@@ -19,7 +19,8 @@ from modules import engine as engine_mod
 from modules.i18n import t
 from modules.progress import parse_progress_line
 from modules.urls import extract_url
-from modules.version import APP_NAME, APP_VERSION
+from modules import channel
+from modules.version import APP_VERSION
 from modules.winshell import WindowMixin
 
 LOG = logger.get()
@@ -100,6 +101,7 @@ class Api(WindowMixin):
         appearance = cfg.get("appearance")
         state = {
             "version": APP_VERSION,
+            "beta": channel.is_beta(),
             "appearance": appearance if appearance in THEMES else "System",
             "language": i18n.normalize_setting(cfg.get("language")),
             "lang": i18n.current(),
@@ -507,6 +509,7 @@ class Api(WindowMixin):
                 LOG.exception("Update check failed")
                 failed = {"status": "error", "message": str(exc)}
                 results = {"ytdlp": failed, "python": failed, "ffmpeg": failed, "deno": failed}
+            self._announce_beta()  # 這次查到的 UI 版本狀態：更新頭標題與視窗標題
             text, problem, suggest_python = update_summary.summarize_update(results)
             ffmpeg_missing = (results.get("ffmpeg") or {}).get("status") == "missing"
             command = None  # (按鈕文字, 命令, 種類)
@@ -521,7 +524,7 @@ class Api(WindowMixin):
             self._emit(type="update_done", text=text, problem=problem,
                        items=check.items_from_results(results),  # 有新版的項目：網頁接上同一組安裝彈窗
                        python_url=updater.PYTHON_DOWNLOADS_URL if suggest_python else "",
-                       project_url=updater.PROJECT_URL if (results.get("ui") or {}).get("status") == "update_available" else "",
+                       project_url=updater.RELEASE_URL if (results.get("ui") or {}).get("status") == "update_available" else "",
                        ffmpeg_url=downloader.FFMPEG_DOWNLOAD_URL if ffmpeg_missing else "",
                        command=command)
 
@@ -533,8 +536,8 @@ class Api(WindowMixin):
         return True
 
     def open_project_page(self):
-        """UI 有新版時的「yt-dlp-Python-UI」按鈕：開專案庫（網址固定寫在後端，網頁不能指定）。"""
-        webbrowser.open(updater.PROJECT_URL)
+        """UI 有新版時的「yt-dlp-Python-UI」按鈕：開專案庫的最新 Release 頁（網址固定寫在後端，網頁不能指定）。"""
+        webbrowser.open(updater.RELEASE_URL)
         return True
 
     # ----------------------------------------------------------- 啟動檢查與自動安裝（邏輯在 modules/check.py）
@@ -543,8 +546,18 @@ class Api(WindowMixin):
         if self._check_started:
             return
         self._check_started = True
-        threading.Thread(target=check.run_startup_check, args=(self._base_dir, self._deliver_prompt),
+        threading.Thread(target=check.run_startup_check, args=(self._base_dir, self._deliver_prompt, self._announce_beta),
                          daemon=True).start()
+
+    def _announce_beta(self, beta=None):
+        """UI 版本狀態（是否為 Beta）確定後：通知網頁更新頭標題的膠囊，並更新視窗（工作列）標題。"""
+        beta = channel.is_beta() if beta is None else bool(beta)
+        self._emit(type="ui_beta", beta=beta)
+        try:
+            if self._window is not None:
+                self._window.set_title(channel.title())
+        except Exception as exc:  # noqa: BLE001 — 標題更新是錦上添花，失敗不影響功能
+            LOG.debug("set_title failed: %s", exc)
 
     def _deliver_prompt(self, items, ui=None):
         """items：要安裝／更新的項目；ui：UI（本程式）有新版時是 {"current", "latest"}，否則 None。"""
@@ -614,7 +627,7 @@ def main(base_dir):
     i18n.set_language(i18n.resolve(cfg.get("language")))
     api = Api(base_dir, cfg, config_path)
     window = webview.create_window(
-        f"{APP_NAME} v{APP_VERSION}", os.path.join(base_dir, "web", "index.html"),
+        channel.title(), os.path.join(base_dir, "web", "index.html"),
         js_api=api, width=1120, height=1040, min_size=(900, 680),
         frameless=True, easy_drag=False, resizable=True)  # 標題列由網頁自己畫；拖曳移動由 win_start_drag 處理
     api._window = window

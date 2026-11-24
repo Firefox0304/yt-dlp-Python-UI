@@ -169,6 +169,7 @@ window.__py=e=>{
   else if(e.type==="done")onDone(e);
   else if(e.type==="diag")onDiag(e);
   else if(e.type==="update_done")onUpdateDone(e);
+  else if(e.type==="ui_beta")$("beta").hidden=!e.beta;  // 本地版本比 GitHub 最新發佈的高：頭標題顯示橘色 Beta 膠囊
   else if(e.type==="install_prompt")showPrompt(e.items,e.ui);
   else if(e.type==="install_progress")onInstallProgress(e);
   else if(e.type==="install_done")onInstallDone();
@@ -412,7 +413,7 @@ async function init(){
   $("note").hidden=true;
   const s=await api().get_state();
   I18N=s.strings||{};LANG=s.lang||"zh-TW";buildLang(s.language||"auto");applyI18n();
-  $("ver").textContent="v"+s.version;defaultDir=s.default_dir;$("dir").value=s.outdir;
+  $("ver").textContent="v"+s.version;$("beta").hidden=!s.beta;defaultDir=s.default_dir;$("dir").value=s.outdir;
   for(const k in FIELDS){const [id,t]=FIELDS[k],e=$(id);
     if(t==="c")e.checked=!!s[k];else if(e.tagName==="SELECT")setSel(id,String(s[k]));else e.value=s[k]}
   $("frag").disabled=!s.boost;buildLanes();setMode(s.appearance,false);ready=true;syncClear();root.classList.remove("pending");

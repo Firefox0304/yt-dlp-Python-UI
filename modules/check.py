@@ -14,7 +14,7 @@ import subprocess
 import sys
 from collections import deque
 
-from modules import downloader, logger, updater, utils
+from modules import channel, downloader, logger, updater, utils
 from modules import engine as engine_mod
 from modules.i18n import t
 
@@ -177,8 +177,9 @@ def collect_startup_ui(check=None):
     return None
 
 
-def run_startup_check(base_dir, deliver):
+def run_startup_check(base_dir, deliver, on_beta=None):
     """背景執行緒入口：有要處理的項目或 UI 新版時呼叫 deliver(items, ui)，都沒有就什麼都不做（不跳任何彈窗）。
+    on_beta(是否為 Beta) 在 UI 版本查完後一定會呼叫一次（不影響是否跳彈窗）。
 
     兩項檢查互不影響：缺少／yt-dlp 檢查失敗時仍會通知 UI 新版，反過來也一樣。
     """
@@ -193,6 +194,11 @@ def run_startup_check(base_dir, deliver):
         LOG.warning("Startup UI update check failed: %s", exc)
         ui = None
     LOG.info("Startup check items: %s; UI update: %s", items, ui)
+    if on_beta is not None:  # UI 版本查完（成功或失敗都呼叫）：讓畫面依 Beta 狀態更新
+        try:
+            on_beta(channel.is_beta())
+        except Exception:  # noqa: BLE001
+            LOG.exception("on_beta callback failed")
     if items or ui:
         deliver(items, ui)
 

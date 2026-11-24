@@ -17,6 +17,7 @@ import urllib.request
 from modules import downloader
 from modules import engine as engine_mod
 from modules import utils
+from modules import channel
 from modules.i18n import t
 from modules.version import APP_VERSION
 
@@ -83,9 +84,11 @@ def _version_tuple(version):
 def is_newer(latest, current):
     """yt-dlp 版本是純數字的日期格式（2025.10.22[.nightly]），直接比較數字即可。"""
     try:
-        return _version_tuple(latest) > _version_tuple(current)
+        a, b = _version_tuple(latest), _version_tuple(current)
     except ValueError:
         return latest != current
+    size = max(len(a), len(b))  # 長度不同時補零再比：7.1 與 7.1.0 視為相同版本
+    return a + (0,) * (size - len(a)) > b + (0,) * (size - len(b))
 
 
 def build_update_command(eng):
@@ -327,6 +330,8 @@ def check_deno(base_dir, check_upgrade=False, winget_ok=False):
 # --------------------------------------------------------------------------- #
 
 PROJECT_URL = "https://github.com/Firefox0304/yt-dlp-Python-UI"
+# 「yt-dlp-Python-UI」按鈕開的頁面：GitHub 會自動導向最新的 Release；固定網址，不依賴 tag 名稱，tag 命名改了也不會 404
+RELEASE_URL = PROJECT_URL + "/releases/latest"
 UI_TAGS_URL = "https://api.github.com/repos/Firefox0304/yt-dlp-Python-UI/tags?per_page=100"
 # tag 只認「可有 UI- 前綴、可有 v、後面是純數字版本」：UI-v7.1.0、v7.1.0、7.1.0 都行；預覽版等其他 tag 一律忽略
 _UI_TAG_RE = re.compile(r"^(?:ui[-_ ]?)?v?(\d+(?:\.\d+){1,3})$", re.IGNORECASE)
@@ -356,9 +361,10 @@ def fetch_latest_ui(timeout=8):
 
 
 def check_ui(current=None, fetch=None):
-    """回傳 {"status": ok | update_available | unknown, "current", "latest"?}。
+    """回傳 {"status": ok | update_available | beta | unknown, "current", "latest"?}。
 
-    查不到（離線、被限流、沒有符合格式的 tag）時是 unknown：不算檢查失敗，也不打擾使用者。
+    beta：本地版本比 GitHub 上最新的 tag 還高（還沒發佈的搶先版），會同步記到 modules/channel.py。
+    unknown：查不到（離線、被限流、沒有符合格式的 tag），不算檢查失敗，也不改變原本的 Beta 狀態（無法確認就不更動）。
     畫面上只會出現解析後的數字版本，不會出現 tag 原文。
     """
     current = str(current or APP_VERSION)
@@ -370,7 +376,13 @@ def check_ui(current=None, fetch=None):
     if not latest:
         return result
     result["latest"] = latest
-    result["status"] = "update_available" if is_newer(latest, current) else "ok"
+    if is_newer(latest, current):
+        result["status"] = "update_available"
+    elif is_newer(current, latest):
+        result["status"] = "beta"
+    else:
+        result["status"] = "ok"
+    channel.set_beta(result["status"] == "beta")
     return result
 
 
