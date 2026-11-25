@@ -1,13 +1,13 @@
-__pycache__/
-*.pyc
 dist/
 logs/
 backup/
 config/
 example/
 Download/
+__pycache__/
 Python Download/
 yt-dlp.exe
 ffmpeg.exe
-*.part
+*.pyc
 *.ytdl
+*.part
