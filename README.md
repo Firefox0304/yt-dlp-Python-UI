@@ -1,6 +1,6 @@
 # yt-dlp-Python-UI（網頁介面版）
 
-以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。v6.0 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
+以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。[v6.0以上](https://github.com/Firefox0304/yt-dlp-Python-UI/releases/latest) 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
 
 > **v6.0 以上僅只支援 Windows（建議 Windows 11）。**
 > 需要跨平台（Linux／macOS）版請使用 [v5.6](https://github.com/Firefox0304/yt-dlp-Python-UI/releases/tag/UI-v5.6) 的TK版。
