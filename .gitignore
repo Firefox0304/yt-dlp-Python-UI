@@ -8,6 +8,7 @@ __pycache__/
 Python Download/
 yt-dlp.exe
 ffmpeg.exe
+manifest.json
 *.pyc
 *.ytdl
 *.part
