@@ -1,3 +1,24 @@
+# v7.2.2
+
+## 修正
+- 修正：執行 `tools/make_release.py` 時，專案根目錄留有 `manifest.json`（把更新包解壓到專案資料夾時會留下）會報「這些檔案不能放進更新包：manifest.json」而無法打包。`manifest.json` 是更新包自己的清單檔名稱，不是程式的一部分，現在根目錄的 `manifest.json` 會被忽略；同類的根目錄殘留 `.zip`、`.sha256`（更新包本身）也一併忽略。
+  - 只對專案根目錄生效：`modules/` 等資料夾裡的 `manifest.json` 仍是一般的 `.json` 檔，照常打包；其他資料夾裡的 `.zip` 仍會報錯並列出。
+- 新增對應測試。版本號升為 7.2.2；只改動開發用的打包工具，不影響程式執行，不需要重新打包 exe。
+
+# v7.2.1
+
+## 變更：更新包改為「完整打包」
+- `tools/make_release.py` 的打包內容改為「專案裡除了入口與使用者資料以外的所有東西」：`modules/`、`web/`、`locales/`、`fonts/`（新增）、`tests/`、`tools/`、`README.md`、`CHANGELOG.md`、`requirements.txt`、`.gitignore`。
+  - 不打包：`.git/`、`config/`、`Download/`、`example/`、`logs/`，以及 `backup/`、`dist/`、`build/`、`.github/`、`.vscode/`、`.idea/`、`venv/`、`Python Download/`、根目錄的 `.exe`／`.pyw`（入口、yt-dlp.exe、ffmpeg.exe）、`__pycache__`、`*.pyc`。這些排除只對專案根目錄生效，別的資料夾裡同名的東西不會被默默吃掉。
+  - 遇到不在使用者端白名單內的檔案（例如 `modules/` 裡的 `.bak`、根目錄多出來的 `icon.ico`）會直接報錯並列出，不會默默漏掉；用新的 `--exclude 路徑`（可重複）排除，或加進白名單。
+- 使用者端白名單同步擴大：新增 `fonts/`、`tests/`、`tools/` 資料夾、`.ttf` 副檔名，以及根目錄的 `requirements.txt`、`.gitignore`、`LICENSE`（`.md`／`.txt`）。仍然不收 exe、dll、bat 等可執行檔。
+- 上限放寬以容納字型（兩個約 7 MB）：更新包 40 MB、單檔 16 MB、解開後合計 100 MB。目前完整更新包約 8.4 MB。
+
+## 新增
+- 套用更新時，內容（SHA-256）與目前相同的檔案會跳過：不重寫、也不備份。字型這類幾乎不會變的大檔，每次更新不會多花時間，也不會讓 `backup/` 變大。全部都沒變時不建立備份。
+- `--exclude`：打包時額外排除檔案或資料夾。
+- 這版沒有改動 exe，不需要重新打包 exe。
+
 # v7.2.0
 
 ## 新增：程式自動更新

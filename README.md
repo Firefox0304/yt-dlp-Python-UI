@@ -1,6 +1,6 @@
 # yt-dlp-Python-UI（網頁介面版）
 
-以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。[v6.0以上](https://github.com/Firefox0304/yt-dlp-Python-UI/releases/latest) 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
+以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。v6.0 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
 
 > **v6.0 以上僅只支援 Windows（建議 Windows 11）。**
 > 需要跨平台（Linux／macOS）版請使用 [v5.6](https://github.com/Firefox0304/yt-dlp-Python-UI/releases/tag/UI-v5.6) 的TK版。
@@ -68,11 +68,12 @@ python tools/check_locales.py
 
 ## 發佈新版本與自動更新
 程式啟動與按「檢查更新」時會查 GitHub 專案庫的 tag；有新版時彈窗有「立即更新」：下載 Release 的更新包、驗證、使用者確認後備份舊檔、套用並重新啟動。
-自動更新只換 exe 旁邊的外部檔案（`modules/`、`web/`、`locales/`、`CHANGELOG.md`、`README.md`），不碰 exe、`config/`、`logs/`、`Download/`。
+自動更新換的是 exe 旁邊的所有外部檔案（`modules/`、`web/`、`locales/`、`fonts/`、`tests/`、`tools/`、`README.md`、`CHANGELOG.md`、`requirements.txt`、`.gitignore`），內容沒變的檔案（例如字型）會跳過；不碰 exe／入口檔、`config/`、`logs/`、`Download/`、`example/`。
 
 發佈步驟：
 1. 改 `modules/version.py` 的 `APP_VERSION`，並在 `CHANGELOG.md` 最上方加同版本的標題。
 2. 執行 `python tools/make_release.py`，會在 `dist/` 產生 `yt-dlp-Python-UI-v<版本>.zip` 與 `.zip.sha256`（內含 `manifest.json`：每個檔案的 SHA-256；已用使用者端同一套驗證程式檢查過）。
+   - 打包內容是「專案裡除了入口與使用者資料以外的所有東西」（不含 `.git/`、`config/`、`Download/`、`example/`、`logs/`、`backup/`、`dist/`、根目錄的 `.exe`／`.pyw`／`.zip`／`.sha256`／`manifest.json`、`__pycache__`）。遇到不在白名單內的檔案會直接報錯並列出，請用 `--exclude 路徑` 排除（可重複），或把它加進 `modules/selfupdate.py` 的白名單，不會默默漏掉。
    - 這版要刪掉的舊檔：加 `--remove modules/old.py`（可重複）。
    - 這版必須換新的 exe：加 `--requires-new-exe`，使用者端只會引導到下載頁，不會自動更新。
 3. 在 GitHub 打上 tag（`v<版本>`），建立 **Release**，把 `dist/` 裡的兩個檔案上傳為附件。附件檔名不能改。

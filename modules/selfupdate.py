@@ -1,13 +1,14 @@
 # modules/selfupdate.py
 """程式本身（UI）的自動更新：從 GitHub Release 下載更新包，驗證後覆蓋外部檔案。
 
-只更新 exe 旁邊的外部檔案（modules／web／locales／CHANGELOG.md／README.md）；入口（exe 或 .pyw）不在範圍內。
+更新整份程式的外部檔案（modules／web／locales／fonts／tests／tools 與根目錄的說明文件）；
+入口（exe 或 .pyw）與使用者資料（config／logs／Download／example 等）不在範圍內。
 每一步失敗都會停下，在「套用」之前完全不會動到現有檔案：
 
 1. fetch_release   查 releases/latest，找 yt-dlp-Python-UI-vX.Y.Z.zip 與 .sha256 兩個附件
 2. download_file   只准 https、白名單網域（每次轉址都檢查）、有大小上限
 3. 比對 SHA-256 → extract_verified：逐檔檢查路徑與白名單、對照 manifest.json 的雜湊，解到暫存資料夾
-4. apply_update    先備份舊檔，再逐檔替換；任何一步失敗就從備份還原
+4. apply_update    內容相同的檔案跳過；其餘先備份舊檔，再逐檔替換；任何一步失敗就從備份還原
 
 更新包由 tools/make_release.py 產生。manifest 標示 requires_new_exe 的版本只引導使用者手動下載新 exe。
 """
@@ -33,17 +34,19 @@ MANIFEST_FORMAT = 1
 PACKAGE_NAME = "yt-dlp-Python-UI"
 
 MAX_API_BYTES = 2 * 1024 * 1024
-MAX_ZIP_BYTES = 20 * 1024 * 1024
-MAX_FILE_BYTES = 8 * 1024 * 1024
-MAX_UNPACKED_BYTES = 60 * 1024 * 1024
+MAX_ZIP_BYTES = 40 * 1024 * 1024      # 含兩個約 7 MB 的字型
+MAX_FILE_BYTES = 16 * 1024 * 1024
+MAX_UNPACKED_BYTES = 100 * 1024 * 1024
 MAX_FILES = 400
 MAX_MANIFEST_BYTES = 1024 * 1024
 NOTES_LIMIT = 1500
 KEEP_BACKUPS = 2
 
-ALLOWED_DIRS = ("modules/", "web/", "locales/")
-ALLOWED_ROOT_FILES = ("CHANGELOG.md", "README.md")
-ALLOWED_SUFFIXES = (".py", ".js", ".css", ".html", ".json", ".md", ".txt", ".svg", ".png", ".ico")
+# 白名單：打包工具（tools/make_release.py）要打包的就是「專案裡除了入口與使用者資料以外的所有東西」，
+# 所以這裡必須涵蓋它們；不在白名單內的檔案，使用者端一律拒絕（打包工具遇到也會直接報錯，不會默默漏掉）
+ALLOWED_DIRS = ("modules/", "web/", "locales/", "fonts/", "tests/", "tools/")
+ALLOWED_ROOT_FILES = ("CHANGELOG.md", "README.md", "requirements.txt", ".gitignore", "LICENSE", "LICENSE.md", "LICENSE.txt")
+ALLOWED_SUFFIXES = (".py", ".js", ".css", ".html", ".json", ".md", ".txt", ".svg", ".png", ".ico", ".ttf")
 
 _REPO_PATH = urllib.parse.urlparse(updater.PROJECT_URL).path          # /Firefox0304/yt-dlp-Python-UI
 _DOWNLOAD_HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
@@ -88,9 +91,9 @@ def is_allowed(rel):
     """只准更新白名單內的資料夾與檔案類型（不收 exe、dll、bat 等可執行檔）。"""
     if "__pycache__" in rel.split("/"):
         return False
-    if os.path.splitext(rel)[1].lower() not in ALLOWED_SUFFIXES:
-        return False
-    return rel in ALLOWED_ROOT_FILES or rel.startswith(ALLOWED_DIRS)
+    if rel in ALLOWED_ROOT_FILES:  # 根目錄的固定檔名（.gitignore 沒有副檔名，所以先比對檔名）
+        return True
+    return rel.startswith(ALLOWED_DIRS) and os.path.splitext(rel)[1].lower() in ALLOWED_SUFFIXES
 
 
 def checked_path(name):
@@ -395,15 +398,29 @@ def _rollback(base, backup_dir, backed, replaced, removed, temps):
             os.remove(tmp)
 
 
-def apply_update(base_dir, staging_dir, manifest, current_version, replace=os.replace):
-    """把 staging_dir 裡驗證過的檔案套用到 base_dir。成功回傳 {"backup", "replaced", "removed"}。
+def _same_content(path, digest):
+    try:
+        return os.path.isfile(path) and sha256_file(path) == digest
+    except OSError:
+        return False  # 讀不到就當作不同，交給後面的流程處理
 
-    套用前先把會被動到的舊檔備份到 backup/v<舊版>-<時間>/；中途任何錯誤都會從備份還原，
+
+def apply_update(base_dir, staging_dir, manifest, current_version, replace=os.replace):
+    """把 staging_dir 裡驗證過的檔案套用到 base_dir。成功回傳 {"backup", "replaced", "removed", "unchanged"}。
+
+    內容（SHA-256）與目前相同的檔案不會重寫、也不備份（例如幾乎不會變的字型）。
+    其餘檔案套用前先把舊檔備份到 backup/v<舊版>-<時間>/；中途任何錯誤都會從備份還原，
     還原也失敗才丟 rollback_failed（此時請使用者從 backup 資料夾手動還原）。
+    沒有任何檔案需要動時不建立備份，backup 回傳空字串。
     """
     base = os.path.realpath(base_dir)
     files, removals = list(manifest["files"]), list(manifest.get("remove", []))
     targets = {rel: _dest_path(base, rel) for rel in files + removals}  # 先全部驗證，不通過就一個檔案都不碰
+    unchanged = [rel for rel in files if _same_content(targets[rel], manifest["files"][rel]["sha256"])]
+    files = [rel for rel in files if rel not in unchanged]
+    targets = {rel: path for rel, path in targets.items() if rel not in unchanged}
+    if not files and not any(os.path.isfile(targets[rel]) for rel in removals):
+        return {"backup": "", "replaced": 0, "removed": 0, "unchanged": len(unchanged)}
     backup_dir = os.path.join(base, "backup", f"v{current_version}-{time.strftime('%Y%m%d-%H%M%S')}")
     backed, replaced, removed, temps = set(), [], [], []
     try:
@@ -433,7 +450,7 @@ def apply_update(base_dir, staging_dir, manifest, current_version, replace=os.re
             raise UpdateError("rollback_failed", f"{exc}; {rollback_exc}") from exc
         raise UpdateError("apply_failed", exc) from exc
     prune_backups(base_dir)
-    return {"backup": backup_dir, "replaced": len(replaced), "removed": len(removed)}
+    return {"backup": backup_dir, "replaced": len(replaced), "removed": len(removed), "unchanged": len(unchanged)}
 
 
 def list_backups(base_dir):
