@@ -174,6 +174,11 @@ window.__py=e=>{
   else if(e.type==="install_progress")onInstallProgress(e);
   else if(e.type==="install_done")onInstallDone();
   else if(e.type==="install_fail")onInstallFail(e);
+  else if(e.type==="selfupdate_progress")onSelfProgress(e);
+  else if(e.type==="selfupdate_ready")onSelfReady(e);
+  else if(e.type==="selfupdate_done")onSelfDone();
+  else if(e.type==="selfupdate_fail")onSelfFail(e);
+  else if(e.type==="selfupdate_manual")onSelfManual(e);
 };
 async function onDone(e){
   $("speed").textContent="—";
@@ -307,18 +312,19 @@ async function onUpdateDone(e){
   if(e.python_url)buttons.push({id:"py",label:t("python.open")});
   if(e.command)buttons.push(copyButton(e.command.label,e.command.text));
   if(e.ffmpeg_url)buttons.push({id:"ff",label:t("ffmpeg.open")});
-  if(e.project_url)buttons.push(projButton());
+  if(e.project_url)buttons.push(updButton(!(e.items&&e.items.length)),projButton());
   const code=e.command?e.command.text:"",note=e.command?t("upd.note",{title:e.command.title,note:e.command.note}):"";
   if(e.items&&e.items.length){await askInstall(e.items,{body:e.text,buttons,code,note});return}  // 有新版：接上同一組安裝彈窗
   const r=await askModal({title:t("quick.update"),body:e.text,buttons,code,note});
-  if(r.id==="py")api().open_python_page();else if(r.id==="ff")api().open_ffmpeg_page();else if(r.id==="proj")api().open_project_page();
+  if(r.id==="py")api().open_python_page();else if(r.id==="ff")api().open_ffmpeg_page();else if(r.id==="proj")api().open_project_page();else if(r.id==="selfupd")startSelfUpdate();
 }
 
 /* ---------- 啟動檢查與自動安裝：缺少套件確認／有更新確認／安裝中（彈窗樣式沿用 askModal） ---------- */
 const promptSeen=new Set();
 let inst=null,dotT=null;
 const waitFree=fn=>{if(ready&&!modalDone)fn();else setTimeout(()=>waitFree(fn),300)};  // 等語言載入完成、且沒有別的彈窗開著
-const projButton=()=>({id:"proj",label:t("update.ui.button")});  // UI 有新版：開專案庫
+const projButton=()=>({id:"proj",label:t("update.ui.button")});
+const updButton=primary=>({id:"selfupd",label:t("selfupdate.button"),primary});  // 立即更新：下載、驗證、套用、重新啟動  // UI 有新版：開專案庫
 const uiLine=ui=>t("update.ui.available",{current:ui.current,latest:ui.latest});
 function showPrompt(items,ui){
   items=items||[];
@@ -326,12 +332,13 @@ function showPrompt(items,ui){
   const key=JSON.stringify([items,ui||null]);
   if(promptSeen.has(key))return;
   promptSeen.add(key);
-  waitFree(()=>items.length?askInstall(items,ui?{body:uiLine(ui),buttons:[projButton()]}:{}):askUiUpdate(ui));
+  waitFree(()=>items.length?askInstall(items,ui?{body:uiLine(ui),buttons:[updButton(false),projButton()]}:{}):askUiUpdate(ui));
 }
 async function askUiUpdate(ui){  // 只有 UI 有新版（沒有要安裝的項目）
   const r=await askModal({title:t("check.ui.title"),body:uiLine(ui),
-    buttons:[{...projButton(),primary:true},{id:"later",label:t("check.later")}]});
-  if(r.id==="proj")api().open_project_page();
+    buttons:[updButton(true),projButton(),{id:"later",label:t("check.later")}]});
+  if(r.id==="selfupd")startSelfUpdate();
+  else if(r.id==="proj")api().open_project_page();
 }
 async function askInstall(items,extra={}){
   const missing=items.some(i=>i.action==="install");
@@ -344,6 +351,7 @@ async function askInstall(items,extra={}){
   if(r.id==="py")api().open_python_page();
   else if(r.id==="ff")api().open_ffmpeg_page();
   else if(r.id==="proj")api().open_project_page();
+  else if(r.id==="selfupd"){startSelfUpdate();return}
   if(r.id!=="ok")return;
   showInstalling();  // 先開「安裝中」再通知 Python 開始，這樣最早的進度與失敗事件都接得到
   const res=await api().confirm_install(items);
@@ -378,6 +386,53 @@ async function onInstallFail(e){
   const r=await askModal({title:t("check.fail.title"),body:t("check.fail.body",{name:e.item?t("check.item."+e.item):"",message:e.message}),
     buttons:[...pages,{id:"close",label:t("check.close")}]});
   if(r.id&&r.id.startsWith("page:"))api().open_download_page(r.id.slice(5));
+}
+/* ---------- 程式自動更新（下載 → 驗證 → 使用者確認 → 套用並重新啟動；邏輯在 modules/selfupdate.py） ---------- */
+async function startSelfUpdate(){
+  if(!api())return;
+  showSelfUpdating();
+  const res=await api().start_self_update();
+  if(!res.ok){stopInstalling();closeModal({id:"err"});log(res.error);toast(res.error)}
+}
+function showSelfUpdating(){
+  const wrap=document.createElement("div");wrap.className="inst";
+  const name=document.createElement("p"),bar=document.createElement("div"),fill=document.createElement("i"),pct=document.createElement("p");
+  name.className="inst-name";bar.className="inst-bar";pct.className="sub";bar.append(fill);wrap.append(name,bar,pct);
+  inst={name,fill,pct,label:t("selfupdate.stage.checking"),dots:1};
+  clearInterval(dotT);dotT=setInterval(()=>{if(inst){inst.dots=inst.dots%3+1;renderInst()}},450);
+  askModal({title:t("selfupdate.title"),node:wrap,locked:true,buttons:[]});
+  renderInst();
+}
+function onSelfProgress(e){
+  if(!inst)return;
+  inst.label=t("selfupdate.stage."+e.stage);
+  if(e.pct!=null){inst.fill.style.width=Math.min(100,e.pct)+"%";inst.pct.textContent=Math.round(e.pct)+"%"}
+  else inst.pct.textContent="";
+  renderInst();
+}
+async function onSelfReady(e){  // 已下載並驗證完：讓使用者確認後才套用
+  stopInstalling();closeModal({id:"prep"});
+  const r=await askModal({title:t("selfupdate.ready.title"),body:t("selfupdate.ready.body",{current:e.current,latest:e.latest}),code:e.notes||"",
+    buttons:[{id:"go",label:t("selfupdate.apply"),primary:true},{id:"later",label:t("check.later")}]});
+  if(r.id!=="go"){api().cancel_self_update();return}
+  showSelfUpdating();
+  const res=await api().confirm_self_update();
+  if(!res.ok){stopInstalling();closeModal({id:"err"});log(res.error);toast(res.error)}
+}
+function onSelfDone(){
+  if(!inst)return;
+  clearInterval(dotT);dotT=null;inst.fill.style.width="100%";inst.name.textContent=t("selfupdate.done");inst.pct.textContent="";
+}
+async function onSelfFail(e){
+  stopInstalling();closeModal({id:"fail"});
+  const r=await askModal({title:t("selfupdate.fail.title"),body:e.message,buttons:[projButton(),{id:"close",label:t("check.close")}]});
+  if(r.id==="proj")api().open_project_page();
+}
+async function onSelfManual(e){  // 這版需要換新的 exe：只能手動下載
+  stopInstalling();closeModal({id:"fail"});
+  const r=await askModal({title:t("selfupdate.manual.title"),body:t("selfupdate.manual.body",{latest:e.latest}),
+    buttons:[{...projButton(),primary:true},{id:"close",label:t("check.close")}]});
+  if(r.id==="proj")api().open_project_page();
 }
 const exportButton=text=>({label:t("diag.export"),keep:async e=>{
   e.disabled=true;

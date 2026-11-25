@@ -1,3 +1,27 @@
+# v7.2.0
+
+## 新增：程式自動更新
+- 新版彈窗（啟動自檢、按「檢查更新」）多了「立即更新」按鈕：下載 GitHub Release 的更新包 → 驗證 → 你確認後 → 備份舊檔、套用、自動重新啟動。「yt-dlp-Python-UI」按鈕保留，當作手動下載的後備。
+- 只更新 exe 旁邊的外部檔案：`modules/`、`web/`、`locales/`、`CHANGELOG.md`、`README.md`。exe 本身、`config/`、`logs/`、`Download/` 都不會被動到。
+- 安全：
+  - 只准 https 與 GitHub 網域，每一次轉址都檢查；附件網址必須是本專案 Release 的下載網址；大小有上限。
+  - 更新包要通過 SHA-256 校驗（Release 附的 `.sha256`），而且包內 `manifest.json` 列出的每個檔案雜湊與大小都要相符；zip 裡不能有清單以外的檔案。
+  - 解壓前檢查每個路徑：拒絕絕對路徑、`..`、反斜線、磁碟機代號、Windows 保留名稱、符號連結、重複項目，檔案類型限白名單（不收 exe／dll／bat 等可執行檔）。解壓只寫到暫存資料夾，驗證完才進入套用。
+  - 驗證沒過、或下載中途失敗，現有檔案完全不會被改動。
+- 套用：先把會被動到的舊檔備份到 `backup/v<舊版>-<時間>/`，新檔先寫成同資料夾的暫存檔再逐檔替換；任何一步失敗都從備份還原，連還原都失敗才會要求手動從 `backup/` 複製。備份只留最近兩份。
+- 這版標示需要換新 exe 時（`--requires-new-exe`），只會引導到 Release 頁，不自動更新。
+- 正在下載或安裝時不能更新；更新包下載並驗證完後會顯示更新說明，按「更新並重新啟動」才會套用，按「稍後再說」會清掉暫存。
+- 注意：Release 頁要有該版本的更新包才能自動更新；只打了 tag、還沒建立 Release 時，會提示「Release 還沒有更新的版本」。
+- 四種語言新增 `selfupdate.*` 文字。
+
+## 新增：發佈工具
+- `tools/make_release.py`：產生 `dist/yt-dlp-Python-UI-v<版本>.zip` 與 `.zip.sha256`（含 `manifest.json`）。內容固定（同樣的檔案永遠得到同樣的雜湊）；打包後用使用者端同一套驗證程式自我檢查，過不了就不該上傳。支援 `--remove 路徑`（這版要刪的舊檔）與 `--requires-new-exe`。
+- README 新增「發佈新版本與自動更新」；`.gitignore` 加入 `backup/`、`dist/`。
+
+## 內部整理（不影響使用）
+- 新增 `modules/selfupdate.py`、`tools/make_release.py`、`tests/test_selfupdate.py`（路徑與清單驗證、zip slip、壓縮炸彈、轉址、下載、套用與還原、發佈工具、webui 流程、前端接線，全部離線）。
+- 版本號升為 7.2.0。這是第一個含自動更新的版本，從 7.1.x 升上來需手動覆蓋一次（覆蓋 `modules/`、`web/`、`locales/` 等檔案）；之後的版本就能從彈窗直接更新。入口 exe 沒有變動，不需要重新打包。
+
 # v7.1.2
 
 ## 新增：Beta 標示

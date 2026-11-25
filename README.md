@@ -1,6 +1,6 @@
 # yt-dlp-Python-UI（網頁介面版）
 
-以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。v6.0 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
+以 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 為核心的下載工具圖形介面。[v6.0以上](https://github.com/Firefox0304/yt-dlp-Python-UI/releases/latest) 的介面用 HTML／CSS／JavaScript 繪製，透過 [pywebview](https://pywebview.flowrl.com/) 顯示；後端仍是 Python。
 
 > **v6.0 以上僅只支援 Windows（建議 Windows 11）。**
 > 需要跨平台（Linux／macOS）版請使用 [v5.6](https://github.com/Firefox0304/yt-dlp-Python-UI/releases/tag/UI-v5.6) 的TK版。
@@ -45,9 +45,11 @@ pip install -r requirements.txt
 | `modules/` | Python 後端（`webui.py` 為網頁與 Python 之間的橋接；`winshell.py` 為自訂標題列的視窗控制；`progress.py` 為進度行解析；`diagnostics.py` 為診斷包匯出） |
 | `web/` | 介面：`index.html`（結構）、`style.css`（樣式）、`app.js`（邏輯） |
 | `locales/` | 介面文字：每個語言一個資料夾（`zh-TW/`、`zh-CN/`、`en/`、`ja/`），裡面的 `strings.json`（介面文字）、`errors.json`（錯誤訊息 `err.*`）、`logs.json`（日誌訊息 `log.*`）會合併載入；資料夾內新增其他 `.json` 也會被讀取 |
+| `modules/selfupdate.py` | 程式自動更新：從 GitHub Release 下載更新包、驗證、備份、套用、還原 |
 | `fonts/` | 隨附字型 Noto Sans TC（OFL 授權） |
 | `tests/`、`tools/` | 單元測試與開發用小工具（執行程式不需要） |
-| `config/`、`logs/`、`Download/`、`example/` | 執行時自動產生 |
+| `tools/make_release.py` | 產生要上傳到 GitHub Release 的更新包（見下方「發佈新版本」） |
+| `config/`、`logs/`、`Download/`、`example/`、`backup/` | 執行時自動產生（`backup/` 是自動更新前的舊檔備份，只留最近兩份） |
 
 ## 開發與測試
 在專案根目錄執行（只用標準函式庫，不需額外安裝）：
@@ -63,6 +65,19 @@ python tools/check_locales.py
 
 版本號只在 `modules/version.py` 的 `APP_VERSION` 修改一處；標題列與視窗標題都會自動帶入，
 改版時記得在 `CHANGELOG.md` 最上方新增同版本號的標題（測試會檢查兩者一致）。
+
+## 發佈新版本與自動更新
+程式啟動與按「檢查更新」時會查 GitHub 專案庫的 tag；有新版時彈窗有「立即更新」：下載 Release 的更新包、驗證、使用者確認後備份舊檔、套用並重新啟動。
+自動更新只換 exe 旁邊的外部檔案（`modules/`、`web/`、`locales/`、`CHANGELOG.md`、`README.md`），不碰 exe、`config/`、`logs/`、`Download/`。
+
+發佈步驟：
+1. 改 `modules/version.py` 的 `APP_VERSION`，並在 `CHANGELOG.md` 最上方加同版本的標題。
+2. 執行 `python tools/make_release.py`，會在 `dist/` 產生 `yt-dlp-Python-UI-v<版本>.zip` 與 `.zip.sha256`（內含 `manifest.json`：每個檔案的 SHA-256；已用使用者端同一套驗證程式檢查過）。
+   - 這版要刪掉的舊檔：加 `--remove modules/old.py`（可重複）。
+   - 這版必須換新的 exe：加 `--requires-new-exe`，使用者端只會引導到下載頁，不會自動更新。
+3. 在 GitHub 打上 tag（`v<版本>`），建立 **Release**，把 `dist/` 裡的兩個檔案上傳為附件。附件檔名不能改。
+
+更新失敗時，舊檔備份在程式資料夾的 `backup/v<舊版>-<時間>/`，把裡面的檔案複製回程式資料夾即可還原。
 
 ## 更新紀錄
 見 [CHANGELOG.md](CHANGELOG.md)。

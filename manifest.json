@@ -1,0 +1,153 @@
+{
+ "files": {
+  "CHANGELOG.md": {
+   "sha256": "d29db52bd8184c0fefc417bd4a9117f23e32a3dff23b2a0bbc6ec52ab5e78909",
+   "size": 41926
+  },
+  "README.md": {
+   "sha256": "91a41f75de1c9e4396087cd94609b358772c87e03969c97aa1e5e366a581f961",
+   "size": 5989
+  },
+  "locales/en/errors.json": {
+   "sha256": "75d5dc165fe5cd00c3a887bce175293c2516a3dc700ee8c819b4fee04a1c9748",
+   "size": 916
+  },
+  "locales/en/logs.json": {
+   "sha256": "4a02d0cfee588be68159eafceadd1edcd3c8d37286e83fab4480601268045da2",
+   "size": 782
+  },
+  "locales/en/strings.json": {
+   "sha256": "bec50cf7c1c06a0d23fbd5505cd92fa644061529abded87583c4f693c986e66d",
+   "size": 19009
+  },
+  "locales/ja/errors.json": {
+   "sha256": "541ae12c9b65c5a008025c8c2b739654693cd7fb6aae298e67a7af42e70d64d9",
+   "size": 1215
+  },
+  "locales/ja/logs.json": {
+   "sha256": "4ac4ebaf54c9095d9c14d95b9153ceda282c131ae735c06071ffc14bd32323ce",
+   "size": 1051
+  },
+  "locales/ja/strings.json": {
+   "sha256": "70c80d42433981bf9081420ec6239d56b6e310d89ee998c00705ebc3b5bbfe13",
+   "size": 25651
+  },
+  "locales/zh-CN/errors.json": {
+   "sha256": "09427696072f9fcdcd772ff298fd1eb1b563dee50bb28ca59377e480ecf77e5f",
+   "size": 928
+  },
+  "locales/zh-CN/logs.json": {
+   "sha256": "abd232ff996a212752619d2b3c6f061f7c5462ee7f480e2f7ed2426738f7cc62",
+   "size": 793
+  },
+  "locales/zh-CN/strings.json": {
+   "sha256": "ab1ea464d2712fc4cfa3fb71b527d95581a6431342859f8279e03aaa1bb05d4a",
+   "size": 18468
+  },
+  "locales/zh-TW/errors.json": {
+   "sha256": "410d48eff549791ca1d5159c64972fd7a8fa159947c2b997c0b87d49ec924a3c",
+   "size": 913
+  },
+  "locales/zh-TW/logs.json": {
+   "sha256": "4bad5557b0aac9c631a0b16bc373c1f43846bf5ab149f4eee3f210d552cc0f0b",
+   "size": 787
+  },
+  "locales/zh-TW/strings.json": {
+   "sha256": "0121fd1464065bf5a567fbfc0e07d1c0743dcbcc8c3c74e5b1687a2734bd67bf",
+   "size": 18327
+  },
+  "modules/__init__.py": {
+   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "size": 0
+  },
+  "modules/channel.py": {
+   "sha256": "e978bbe114fe72f12f1312b73581dff3873f193368a5b29ee8f291e0b402104a",
+   "size": 856
+  },
+  "modules/check.py": {
+   "sha256": "b44f830b8594c0cb15acd6b00737bf25f4e4ca6ddc61a3fd8a6382c2efd9b71c",
+   "size": 17956
+  },
+  "modules/config_manager.py": {
+   "sha256": "2ebe97b6cccc08ad7f5166e9b525f70fa6367c43c0532f10d28f22e8d4e72e61",
+   "size": 4351
+  },
+  "modules/diagnostics.py": {
+   "sha256": "8a995bfef65c05425f1354a5318c5560bf620853650373f427173cac85f93b77",
+   "size": 2973
+  },
+  "modules/downloader.py": {
+   "sha256": "e90a9b0631d0a4668804fec4353102268d5a88943c3b1a991bdeef95511e2090",
+   "size": 27501
+  },
+  "modules/engine.py": {
+   "sha256": "5821a9d251998029b0686a3fbc5a4ece999663cae7d29c389f6d3d806ce2e2b7",
+   "size": 5059
+  },
+  "modules/history.py": {
+   "sha256": "95c459dfe302202365a401952dbf127e498c70a1b3a0d27b395c8236edd9d097",
+   "size": 2129
+  },
+  "modules/i18n.py": {
+   "sha256": "f61185ba4a2e7967af0e297889b606be5700e1b9b308faf84ada32054554d572",
+   "size": 3970
+  },
+  "modules/logger.py": {
+   "sha256": "0b64df859836dc28dd57981a14083c8de27c87da523ad455abc51b081974bfb1",
+   "size": 2733
+  },
+  "modules/progress.py": {
+   "sha256": "a128d172ab7dc477bd49f47f2be5b2e2623d73edebd0ff233b46836cf304f27c",
+   "size": 2515
+  },
+  "modules/selfupdate.py": {
+   "sha256": "2d1cb5ee480c959b99ce4abf74e0adb936234a9772cc08a0fad7b9c96ebaf64c",
+   "size": 21207
+  },
+  "modules/update_summary.py": {
+   "sha256": "e61ac03bcaebeb256f50be0bf4cdab0a4fc2f7f8d40547103194565896bbf2ce",
+   "size": 4753
+  },
+  "modules/updater.py": {
+   "sha256": "fff9157d2a1c829de61fa22f5dcbd452abd070a059b01999f6dbff8260cd43fd",
+   "size": 18481
+  },
+  "modules/urls.py": {
+   "sha256": "6b4e1d252226c6f4d9d8a103c78d46242604ccd8032351ca53544dd0d7fae8fc",
+   "size": 2636
+  },
+  "modules/utils.py": {
+   "sha256": "815c921357c04c5a5f54d40263964308f805f42cdb69bae059b482db384a3f00",
+   "size": 11910
+  },
+  "modules/version.py": {
+   "sha256": "42411883b37cb9635e41659157aceaf308e7b5b54b193f528c791697426e4787",
+   "size": 73
+  },
+  "modules/webui.py": {
+   "sha256": "9f3aed710f4c7fefc0e7e005bb65c5ecf839d36005623148bc695f2c92a7aea7",
+   "size": 38203
+  },
+  "modules/winshell.py": {
+   "sha256": "2b6d4ba17eb63c26a8fd3bbc404aaabe48b9469d200ad5b0f89836add236a3e2",
+   "size": 20857
+  },
+  "web/app.js": {
+   "sha256": "8054f4fdbb3e854189a6c7febf69f0a4956c3bea6aca5df5b865ce4199fad94d",
+   "size": 29343
+  },
+  "web/index.html": {
+   "sha256": "7785d3caefa329b570bed2ec717fac194e2c950d8ff013e7a685c28c72f4284d",
+   "size": 9366
+  },
+  "web/style.css": {
+   "sha256": "d3e4c3418bf11d76177e20398f76d5fa343cc35c7433a6d61c1302343d456a0c",
+   "size": 16553
+  }
+ },
+ "format": 1,
+ "name": "yt-dlp-Python-UI",
+ "remove": [],
+ "requires_new_exe": false,
+ "version": "7.2.0"
+}

@@ -14,7 +14,8 @@ import threading
 import time
 import webbrowser
 
-from modules import check, config_manager, diagnostics, downloader, history, i18n, logger, update_summary, updater, utils
+from modules import (check, config_manager, diagnostics, downloader, history, i18n, logger, selfupdate, update_summary,
+                     updater, utils)
 from modules import engine as engine_mod
 from modules.i18n import t
 from modules.progress import parse_progress_line
@@ -70,6 +71,9 @@ class Api(WindowMixin):
         self._check_started = False
         self._installing = False
         self._install_lock = threading.Lock()
+        self._updating = False         # 程式自動更新：下載驗證中或套用中（見 modules/selfupdate.py）
+        self._pending_update = None    # 已下載並驗證完、等使用者確認套用的更新
+        self._update_lock = threading.Lock()
         self._init_window_state()  # 視窗控制用的內部狀態（見 modules/winshell.py）
 
     # ----------------------------------------------------------- Python → 網頁
@@ -609,9 +613,106 @@ class Api(WindowMixin):
             webbrowser.open(url)
         return bool(url)
 
+    # ----------------------------------------------------------- 程式本身的自動更新（邏輯在 modules/selfupdate.py）
+    def _self_update_busy(self):
+        if self._controller is not None or self._installing:
+            return t("selfupdate.err.busy")
+        return ""
+
+    def start_self_update(self):
+        """新版彈窗按「立即更新」：背景下載並驗證更新包；完成後請網頁讓使用者確認，不會自己套用。"""
+        busy = self._self_update_busy()
+        if busy:
+            return {"ok": False, "error": busy}
+        with self._update_lock:
+            if self._updating:
+                return {"ok": False, "error": t("selfupdate.err.busy")}
+            self._updating = True
+        self.cancel_self_update()  # 重新開始：先丟掉上一次沒用掉的暫存
+        threading.Thread(target=self._self_update_prepare, daemon=True).start()
+        return {"ok": True}
+
+    def _self_update_prepare(self):
+        try:
+            pending = selfupdate.prepare_update(
+                APP_VERSION, on_progress=lambda stage, pct: self._emit(type="selfupdate_progress", stage=stage, pct=pct))
+        except selfupdate.UpdateError as exc:
+            self._self_update_failed(exc)
+            return
+        except Exception as exc:  # noqa: BLE001 — 任何意外都要讓網頁顯示原因，並恢復可操作
+            LOG.exception("Self-update preparation failed")
+            self._self_update_failed(selfupdate.UpdateError("unexpected", exc))
+            return
+        with self._update_lock:
+            self._pending_update = pending
+            self._updating = False
+        LOG.info("Self-update to v%s downloaded and verified", pending["version"])
+        self._emit(type="selfupdate_ready", current=APP_VERSION, latest=pending["version"], notes=pending["notes"])
+
+    def confirm_self_update(self):
+        """使用者確認後才套用已驗證的更新：備份 → 替換 → 重新啟動。"""
+        busy = self._self_update_busy()
+        if busy:
+            return {"ok": False, "error": busy}
+        with self._update_lock:
+            if self._updating:
+                return {"ok": False, "error": t("selfupdate.err.busy")}
+            pending = self._pending_update
+            if pending is None:
+                return {"ok": False, "error": t("selfupdate.err.no_pending")}
+            self._updating = True
+        threading.Thread(target=self._self_update_apply, args=(pending,), daemon=True).start()
+        return {"ok": True}
+
+    def _self_update_apply(self, pending):
+        try:
+            self._emit(type="selfupdate_progress", stage="applying", pct=None)
+            result = selfupdate.apply_update(self._base_dir, pending["staging"], pending["manifest"], APP_VERSION)
+        except selfupdate.UpdateError as exc:
+            self.cancel_self_update()
+            self._self_update_failed(exc)
+            return
+        except Exception as exc:  # noqa: BLE001
+            LOG.exception("Self-update apply failed")
+            self.cancel_self_update()
+            self._self_update_failed(selfupdate.UpdateError("unexpected", exc))
+            return
+        LOG.info("Self-update to v%s applied: %s", pending["version"], result)
+        self.cancel_self_update()  # 暫存已經用完
+        self._emit(type="selfupdate_done")
+        time.sleep(1.0)  # 讓網頁顯示「完成」一下
+        try:
+            check.restart(self._base_dir)
+        except Exception as exc:  # noqa: BLE001
+            LOG.exception("Restart after self-update failed")
+            self._self_update_failed(selfupdate.UpdateError("restart_failed", exc))
+            return
+        self.win_close(animate=False)  # 新程序已啟動，關閉目前視窗
+
+    def _self_update_failed(self, exc):
+        LOG.warning("Self-update failed: %s", exc)
+        with self._update_lock:
+            self._updating = False
+        if exc.code == "requires_exe":  # 這版要換新 exe：不能自動更新，引導到下載頁
+            self._emit(type="selfupdate_manual", latest=exc.detail)
+            return
+        state = {"rollback_failed": "broken", "apply_failed": "restored", "restart_failed": "updated"}.get(exc.code, "untouched")
+        message = t("selfupdate.err." + exc.code, detail=exc.detail) + "\n\n" + t("selfupdate.state." + state)
+        self._emit(type="selfupdate_fail", message=message)
+
+    def cancel_self_update(self):
+        """使用者按「稍後再說」，或更新用完／失敗後：丟掉已準備好的更新並清掉暫存資料夾。"""
+        with self._update_lock:
+            pending, self._pending_update = self._pending_update, None
+        if pending:
+            selfupdate.cleanup(pending["work_dir"])
+        return True
+
     # ----------------------------------------------------------- 視窗事件
     def on_closing(self):
         downloader.terminate_all_downloads()
+        if not self._updating:  # 正在套用更新時不要清掉暫存
+            self.cancel_self_update()
 
 
 def main(base_dir):
