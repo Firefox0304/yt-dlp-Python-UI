@@ -38,7 +38,7 @@ FIXED_TIME = (2020, 1, 1, 0, 0, 0)  # 固定時間戳：同樣的內容永遠產
 
 # 根目錄底下不打包的資料夾／檔案（完全相符的名稱）
 DEFAULT_EXCLUDES = (
-    ".git", ".github", ".vscode", ".idea", "build", "dist", "venv", ".venv",   # 開發與建置用
+    ".git", ".github", ".gitignore", ".vscode", ".idea", "build", "dist", "venv", ".venv",   # 開發與建置用
     "config", "Download", "example", "logs", "backup", "Python Download",       # 執行時自動產生的使用者資料
 )
 ROOT_SKIP_SUFFIXES = (".exe", ".pyw", ".zip", ".sha256")  # 根目錄的入口（exe／.pyw）、yt-dlp.exe、ffmpeg.exe、更新包本身：不在更新範圍
